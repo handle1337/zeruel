@@ -1,5 +1,83 @@
+import queue
+import socket
+from threading import Thread, Lock
 import tkinter as tk
 from tkinter import ttk
+
+HOST = ""
+PORT = 7121
+
+
+class Server(Thread):
+    def __init__(self, host, port, _queue, lock):
+        super().__init__()
+        self.running = False
+        self.server_socket = None
+        self.host = host
+        self.port = port
+        self.buffer_size = 8192
+        self.queue = _queue
+        self.lock = lock
+
+    def run(self):
+        try:
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.running = True
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,
+                                          1)  # This is a necessary step since we need to reuse the port immediately
+            self.server_socket.bind((self.host, self.port))
+            self.server_socket.listen(10)
+            print(f"{self.server_socket}")
+        except Exception as e:
+            print(e)
+
+        while self.running:
+            client_socket, client_address = self.server_socket.accept()
+            with self.lock:
+                data = client_socket.recv(self.buffer_size)
+                self.forward_data(client_socket, data, client_address)
+                break  # make this only the case when intercepting
+
+    def stop(self):
+        self.running = False
+        if self.server_socket:
+            self.server_socket.close()
+
+    @staticmethod
+    def parse_data(data):
+        print(data)
+        first_line = data.split(b'\n')[0]
+
+        url = first_line.split()[1]
+
+        http_pos = url.find(b'://')  # Finding the position of ://
+        if http_pos == -1:
+            temp = url
+        else:
+
+            temp = url[(http_pos + 3):]
+
+        port_pos = temp.find(b':')
+
+        webserver_pos = temp.find(b'/')
+        if webserver_pos == -1:
+            webserver_pos = len(temp)
+        webserver = ""
+        port = -1
+        if port_pos == -1 or webserver_pos < port_pos:
+            port = 80
+            webserver = temp[:webserver_pos]
+        else:
+            port = int((temp[(port_pos + 1):])[:webserver_pos - port_pos - 1])
+            webserver = temp[:port_pos]
+        print(data)
+        return webserver, port, data
+
+    def forward_data(self, conn, data, addr):
+        print(self.parse_data(data))
+        # send_data()
+        self.queue.put(data)
+
 
 class Repeater:
     def __init__(self, master):
@@ -9,7 +87,7 @@ class Repeater:
         lf_control_repeater = tk.LabelFrame(self.master, text="Repeater", bg="#a8a8a8", foreground='black')
         lf_control_repeater.pack(fill=tk.BOTH, expand=True)
 
-        intercept_button = tk.Button(lf_control_repeater, text="Send", bg="#ededed", foreground='black', width = 20)
+        intercept_button = tk.Button(lf_control_repeater, text="Send", bg="#ededed", foreground='black', width=20)
         intercept_button.pack(side=tk.TOP, anchor=tk.NW)
 
         lf_control_request = tk.LabelFrame(lf_control_repeater, text="Request", bg="#a8a8a8", foreground='black')
@@ -20,107 +98,149 @@ class Repeater:
 
         # Here we set width and height to 1 so we can let the geometry manager expand the widget to fill extra space
         self.request_text = tk.Text(lf_control_request,
-            borderwidth=3,
-            relief=tk.GROOVE,
-            bg="black",
-            foreground='#00ff22',
-            font=("Roboto", 14),
-            insertbackground="#00ff22",
-            width=1,
-            height=1,
-        )
+                                    borderwidth=3,
+                                    relief=tk.GROOVE,
+                                    bg="black",
+                                    foreground='#00ff22',
+                                    font=("Roboto", 14),
+                                    insertbackground="#00ff22",
+                                    width=1,
+                                    height=1,
+                                    )
 
         self.response_text = tk.Text(lf_control_response,
-            borderwidth=3,
-            relief=tk.GROOVE,
-            bg="black",
-            foreground='#00ff22',
-            font=("Roboto", 14),
-            insertbackground="#00ff22",
-            width=1,
-            height=1
-        )
+                                     borderwidth=3,
+                                     relief=tk.GROOVE,
+                                     bg="black",
+                                     foreground='#00ff22',
+                                     font=("Roboto", 14),
+                                     insertbackground="#00ff22",
+                                     width=1,
+                                     height=1
+                                     )
 
         self.request_text.pack(fill=tk.BOTH, expand=True)
         self.response_text.pack(fill=tk.BOTH, expand=True)
 
-        
 
 class Scanner:
     def __init__(self, master):
-        pass
+        self.master = master
+
 
 class Intercept:
     def __init__(self, master):
         print("Initialized Intercept")
         self.master = master
 
+        self.queue = queue.Queue()
+        self.lock = Lock()
 
         labelframe_control = tk.LabelFrame(self.master, text="Intercepted Request", bg="#a8a8a8", foreground='black')
         labelframe_control.pack(side=tk.LEFT)
 
-        intercept_button = tk.Button(labelframe_control, text="Intercept: off", bg="#ededed", foreground='black')
-        intercept_button.pack(side=tk.TOP, anchor=tk.NW)
+        self.intercept_button = tk.Button(labelframe_control, text="Intercept: off", bg="#ededed", foreground='black',
+                                          width=20, command=self.intercept_toggle)
+        self.forward_button = tk.Button(labelframe_control, text="Forward Request", bg="#ededed", foreground='black',
+                                        width=20, command=self.forward_request)
+        self.intercept_button.pack(side=tk.TOP, anchor=tk.NW)
+        self.forward_button.pack(side=tk.TOP, anchor=tk.NW)
 
         self.intercepted_request = tk.Text(labelframe_control,
-            borderwidth=3,
-            relief=tk.GROOVE,
-            bg="black",
-            foreground='#00ff22',
-            width=200,
-            height=80,
-            font=("Roboto", 14),
-            insertbackground="#00ff22"
-        )
-        
+                                           borderwidth=3,
+                                           relief=tk.GROOVE,
+                                           bg="black",
+                                           foreground='#00ff22',
+                                           width=200,
+                                           height=80,
+                                           font=("Roboto", 14),
+                                           insertbackground="#00ff22"
+                                           )
+
         self.intercepted_request.pack()
-    
-    def intercept_request(self):
-        # this needs to be multithreaded
-        request = "placeholder"
-        return request
+        self.update()
+
+    def forward_request(self):
+        if not self.server_thread.running:
+            pass
+        else:
+            self.server_thread.stop()
+            self.start_proxy()
+        self.intercepted_request.delete('1.0', tk.END)
+
+    def start_proxy(self):
+        self.server_thread = Server(HOST, PORT, self.queue, self.lock)
+        self.server_thread.start()
+
+    def stop_proxy(self):
+        if hasattr(self, 'networking_thread') and self.networking_thread:
+            self.server_thread.stop()
+            self.server_thread.join()
+
+    def update(self):
+        try:
+            with self.lock:
+                while not self.queue.empty():
+                    self.intercepted_request.delete('1.0', tk.END)
+
+                    data = self.queue.get_nowait().decode("utf-8")
+                    self.intercepted_request.insert(tk.END, data)
+                    self.intercepted_request.see(tk.END)
+                    self.master.update()  # update the GUI to display new data
+        except queue.Empty:
+            pass
+        self.master.after(100, self.update)
+
+    def intercept_toggle(self):
+        if self.intercept_button['text'] == 'Intercept: off':
+            self.intercept_button['text'] = 'Intercept: on'
+            self.start_proxy()
+        else:
+            self.intercept_button['text'] = 'Intercept: off'
+            self.stop_proxy()
+
 
 class RootWindow:
     def __init__(self, master):
         self.master = master
         master.title("Zeruel Proxy")
-        self.resolution = self.get_monitor_resolution()
-        master.geometry(f"{self.resolution[0]}x{self.resolution[1]}")
 
-        tab_control = ttk.Notebook(self.master)
+        self.networking_thread = None
 
-        intercept_tab = tk.Frame(tab_control, bg="#8c8787")
-        repeater_tab = tk.Frame(tab_control, bg="#8c8787")
-        scanner_tab = ttk.Frame(tab_control)
+        window_width, window_height = self.master.winfo_screenwidth(), self.master.winfo_screenheight()
+        self.master.geometry("%dx%d+0+0" % (window_width, window_height))
+        self.tab_control = ttk.Notebook(self.master)
 
-        tab_control.add(intercept_tab, text="Intercept")
-        tab_control.add(repeater_tab, text="Repeater")
-        tab_control.add(scanner_tab, text="Scanner")
+        self.intercept_tab = tk.Frame(self.tab_control, bg="#8c8787")
+        self.repeater_tab = tk.Frame(self.tab_control, bg="#8c8787")
+        self.scanner_tab = ttk.Frame(self.tab_control)
 
-        tab_control.pack(expand=True, fill="both")
+        self.tab_control.add(self.intercept_tab, text="Intercept")
+        self.tab_control.add(self.repeater_tab, text="Repeater")
+        self.tab_control.add(self.scanner_tab, text="Scanner")
 
-        intercept = Intercept(intercept_tab)
-        repeater = Repeater(repeater_tab)
+        self.tab_control.pack(expand=True, fill="both")
 
-    def get_monitor_resolution(self):
-        temp_root = tk.Tk()
-        temp_root.update_idletasks()
-        temp_root.attributes('-fullscreen', True)
-        temp_root.state('iconic')
-        width = temp_root.winfo_screenwidth()
-        height = temp_root.winfo_screenheight()
-        temp_root.destroy()
-        print(f"Resolution: {width}x{height}")
-        return width, height
+        self.intercept = Intercept(self.intercept_tab)
+        self.repeater = Repeater(self.repeater_tab)
 
     def __del__(self):
         print("RootWindow Destroyed")
 
+
+def app_loop(root, app):
+    while True:
+        root.update_idletasks()
+        root.update()
+
+
 def main():
     print("[[Zeruel Proxy]]")
     root = tk.Tk()
+    root.wm_state('zoomed')
     app = RootWindow(root)
-    root.mainloop()
+    app_loop(root, app)
+
 
 if __name__ == "__main__":
     main()
