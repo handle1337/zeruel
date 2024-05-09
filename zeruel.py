@@ -1,5 +1,6 @@
 import queue
 import socket
+import ssl
 from threading import Thread, Lock
 import tkinter as tk
 from tkinter import ttk
@@ -7,7 +8,8 @@ from tkinter import ttk
 HOST = ""
 PORT = 7121
 
-
+# TODO: when intercept is turned off, we must forward requests immediately
+# TODO: must also implement ssl.... somehow
 class Server(Thread):
     def __init__(self, host, port, _queue, lock):
         super().__init__()
@@ -18,6 +20,8 @@ class Server(Thread):
         self.buffer_size = 8192
         self.queue = _queue
         self.lock = lock
+
+        self._data = None
 
     def run(self):
         try:
@@ -32,11 +36,17 @@ class Server(Thread):
             print(e)
 
         while self.running:
-            client_socket, client_address = self.server_socket.accept()
+            self.client_socket, client_address = self.server_socket.accept()
+            print(f"{self.client_socket}")
+
+            # We stop taking in new data while we deal with the current req
             with self.lock:
-                data = client_socket.recv(self.buffer_size)
-                self.forward_data(client_socket, data, client_address)
-                break  # make this only the case when intercepting
+                self._data = self.client_socket.recv(self.buffer_size)
+
+                self.queue.put(self._data)  # we put it in the queue to receive it later when dealing with GUI
+
+                #break  # make this only the case when intercepting
+                # self.forward_data(client_socket, data, client_address)
 
     def stop(self):
         self.running = False
@@ -71,12 +81,39 @@ class Server(Thread):
             port = int((temp[(port_pos + 1):])[:webserver_pos - port_pos - 1])
             webserver = temp[:port_pos]
         print(data)
-        return webserver, port, data
+        return {"server": webserver, "port": port, "data": data}
 
-    def forward_data(self, conn, data, addr):
-        print(self.parse_data(data))
-        # send_data()
-        self.queue.put(data)
+    def forward_data(self):
+        if not self._data:
+            print("no data")
+            return
+        request = self.parse_data(self._data)
+        self.send_data(webserver=request["server"],
+                       port=80,
+                       data=request["data"])
+
+    def send_data(self, webserver, port, data):
+        forward_socket = None
+        try:
+            print("data " + data.decode('utf-8'))
+            forward_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            #context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+
+            #wrapped_socket = context.wrap_socket(forward_socket)
+
+            forward_socket.connect((webserver, port))
+            forward_socket.send(data)
+            while True:
+                reply = forward_socket.recv(self.buffer_size)
+                if len(reply) > 0:
+                    print("reply " + reply.decode('utf-8'))
+                    self.client_socket.send(reply)
+
+        except Exception as e:
+            forward_socket.close()
+            print(f"err: {e}")
+        forward_socket.close()
 
 
 class Repeater:
@@ -158,15 +195,17 @@ class Intercept:
                                            )
 
         self.intercepted_request.pack()
-        self.update()
+
 
     def forward_request(self):
         if not self.server_thread.running:
             pass
         else:
-            self.server_thread.stop()
+            forward_thread = Thread(target=self.server_thread.forward_data)
+            forward_thread.start()
             self.start_proxy()
         self.intercepted_request.delete('1.0', tk.END)
+        self.update()
 
     def start_proxy(self):
         self.server_thread = Server(HOST, PORT, self.queue, self.lock)
@@ -189,12 +228,14 @@ class Intercept:
                     self.master.update()  # update the GUI to display new data
         except queue.Empty:
             pass
-        self.master.after(100, self.update)
+        #self.master.after(100, self.update)
+        #do stuff here after
 
     def intercept_toggle(self):
         if self.intercept_button['text'] == 'Intercept: off':
             self.intercept_button['text'] = 'Intercept: on'
             self.start_proxy()
+            self.update()
         else:
             self.intercept_button['text'] = 'Intercept: off'
             self.stop_proxy()
