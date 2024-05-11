@@ -65,8 +65,6 @@ class Server(Thread):
                     self.client_request_queue.put(self.client_data)  # we display this in the GUI
                     self.server_request_queue.put(self.parse_data(self.client_data)) # we queue parsed data to be used when forwarding request
 
-                    break # we stop receiving connections until req is forwarded
-                    # make this only the case when intercepting
         if not send_data_thread.is_alive():
             pass
             #send_data_thread.join()
