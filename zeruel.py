@@ -13,14 +13,15 @@ PORT = 7121
 # TODO: must also implement ssl.... somehow
 # TODO: instead of turning the proxy on and off we should just change how we handle reqs
 class Server(Thread):
-    def __init__(self, host, port, _queue, lock):
+    def __init__(self, host, port, server_request_queue, client_request_queue, lock):
         super().__init__()
         self.running = False
         self.server_socket = None
         self.host = host
         self.port = port
         self.buffer_size = 8192
-        self.queue = _queue
+        self.server_request_queue = server_request_queue
+        self.client_request_queue = client_request_queue
         self.lock = lock
 
         self.client_data = None
@@ -48,24 +49,27 @@ class Server(Thread):
             print(f"{self.client_socket} {client_address[0]} {client_address[1]}")
 
             # We stop taking in new data while we deal with the current req
-            with self.lock:
+            #with self.lock:
                 # get request from client/browser
-                self.client_data = self.client_socket.recv(self.buffer_size)
-                request = self.parse_data(self.client_data)
+            self.client_data = self.client_socket.recv(self.buffer_size)
+            request = self.parse_data(self.client_data)
 
-                if not request:
-                    break
+            if request:
                 send_data_thread = Thread(target=self.send_data, args=(request["server"],
                                         request["port"],
                                         request["data"]))
                 if "CONNECT" in str(self.client_data):
                     send_data_thread.start()
                 else: 
-                    self.queue.put(self.client_data)  # we put it in the queue to receive it later when dealing with GUI
+                    print("\nsending to gui\n")
+                    self.client_request_queue.put(self.client_data)  # we display this in the GUI
+                    self.server_request_queue.put(self.parse_data(self.client_data)) # we queue parsed data to be used when forwarding request
+
                     break # we stop receiving connections until req is forwarded
                     # make this only the case when intercepting
-            if not send_data_thread.is_alive():
-                send_data_thread.join()
+        if not send_data_thread.is_alive():
+            pass
+            #send_data_thread.join()
 
 
     def stop(self):
@@ -119,15 +123,16 @@ class Server(Thread):
         send_data_thread.start()
 
 
-    def send_data(self, webserver, port, data):
+    def send_data(self, hostname, port, data):
+        hostname = hostname.decode('utf-8')
         print("\nsend data\n")
         remote_socket = None
         try:
   
             remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            remote_socket.connect((webserver.decode('utf-8'), port))
+            remote_socket.connect((hostname, port))
             #print("\ndata " + data.decode('utf-8'))
-            print("\nwebserver " + webserver.decode('utf-8'))
+            print("\nwebserver " + hostname)
             print("\nport " + str(port))
 
             context = ssl.create_default_context()
@@ -137,18 +142,18 @@ class Server(Thread):
                     chunk = remote_socket.recv(self.buffer_size)
                     if not chunk:
                         break
-                    #print("reply " + chunk.decode('utf-8'))
+                    print("reply " + chunk.decode('utf-8'))
                     self.client_socket.sendall(chunk) # send back to browser 
 
 
-            with context.wrap_socket(remote_socket, server_hostname=webserver.decode('utf-8')) as wrapped_socket:
-                wrapped_socket.sendall(data)
-                while True:
-                    chunk = wrapped_socket.recv(self.buffer_size)
-                    if not chunk:
-                        break
-                    #print("reply " + chunk.decode('utf-8'))
-                    self.client_socket.sendall(chunk) # send back to browser    
+            # with context.wrap_socket(remote_socket, server_hostname=hostname) as wrapped_socket:
+            #     wrapped_socket.sendall(data)
+            #     while True:
+            #         chunk = wrapped_socket.recv(self.buffer_size)
+            #         if not chunk:
+            #             break
+            #         #print("reply " + chunk.decode('utf-8'))
+            #         self.client_socket.sendall(chunk) # send back to browser    
 
         except Exception as e:
             remote_socket.close()
@@ -209,8 +214,12 @@ class Intercept:
     def __init__(self, master):
         print("Initialized Intercept")
         self.master = master
+        self.intercepting = False
 
-        self.queue = queue.Queue()
+        self.request_sent = False
+
+        self.server_queue = queue.Queue()
+        self.client_queue = queue.Queue()
         self.lock = Lock()
 
         self.server_thread = None
@@ -240,47 +249,55 @@ class Intercept:
 
 
     def forward_request_action(self):
-        if (not self.server_thread) or (not self.server_thread.running):
-            return
-        elif self.server_thread.client_data:
-            print("sdfdsdfs")
-            self.server_thread.forward_data()
-            print("df")
-            self.server_thread.handle_client()
+        if self.server_thread and self.server_thread.running:
+                if not self.server_queue.empty():  
+                    request = self.server_queue.get()
+                    print(f"From Server queue: {request}")
+                    webserver = request["server"]
+                    port = request["port"]
+                    data = request["data"]
+                    Thread(target=self.server_thread.send_data, args=(webserver, port, data)).start()
+                    self.request_sent = True
+                else:
+                    print("queue empty")
 
         self.intercepted_request.delete('1.0', tk.END)
-        self.update()
+        self.update_step()
 
     def start_proxy(self):
-        self.server_thread = Server(HOST, PORT, self.queue, self.lock)
+        self.server_thread = Server(HOST, PORT, self.server_queue, self.client_queue, self.lock)
         self.server_thread.start()
 
     def stop_proxy(self):
         self.server_thread.stop()
         self.server_thread.join()
 
-    def update(self):
-        try:
-            with self.lock:
-                while not self.queue.empty():
-                    self.intercepted_request.delete('1.0', tk.END)
+    def update_step(self):
+        if not self.client_queue.empty():
+            self.intercepted_request.delete('1.0', tk.END)
 
-                    data = self.queue.get_nowait().decode("utf-8")
-                    self.intercepted_request.insert(tk.END, data)
-                    self.intercepted_request.see(tk.END)
-                    self.master.update()  # update the GUI to display new data
-        except queue.Empty:
-            pass
-        self.master.after(50, self.update)
+            data = self.client_queue.get_nowait().decode("utf-8")
+            self.intercepted_request.insert(tk.END, data)
+            self.intercepted_request.see(tk.END)
+            self.master.update()  # update the GUI to display new data
+        
+
+    def update_loop(self):
+        if self.intercepting:
+            self.update_step()
+            self.master.after(100, self.update_loop)
 
     def intercept_toggle(self):
-        if self.intercept_button['text'] == 'Intercept: off':
+        if self.intercepting == False:
+            self.intercepting = True
             self.intercept_button['text'] = 'Intercept: on'
             self.start_proxy()
-            self.update()
+            self.update_loop()
         else:
+            self.intercepting = False
             self.intercept_button['text'] = 'Intercept: off'
             self.stop_proxy()
+            self.update_step()
 
 
 class RootWindow:
