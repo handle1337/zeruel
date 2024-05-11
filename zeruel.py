@@ -45,12 +45,16 @@ class Server(Thread):
 
     def handle_client(self):
         while self.running:
-            self.client_socket, client_address = self.server_socket.accept()
-            print(f"{self.client_socket} {client_address[0]} {client_address[1]}")
 
-            # We stop taking in new data while we deal with the current req
-            #with self.lock:
-                # get request from client/browser
+            # accept incoming connections from client/browser
+            try:
+                self.client_socket, client_address = self.server_socket.accept()
+                print(f"{self.client_socket} {client_address[0]} {client_address[1]}")
+            except Exception as e:
+                print(e)
+                return
+
+            # get request from client/browser
             self.client_data = self.client_socket.recv(self.buffer_size)
             request = self.parse_data(self.client_data)
 
@@ -58,9 +62,12 @@ class Server(Thread):
                 send_data_thread = Thread(target=self.send_data, args=(request["server"],
                                         request["port"],
                                         request["data"]))
+                # We don't need to intercept requests with CONNECT method 
+                #(TODO: should instead parse the req for methods instead of checking if string is in request)
                 if "CONNECT" in str(self.client_data):
-                    send_data_thread.start()
+                    send_data_thread.start() # send connection request
                 else: 
+                    # TODO: we should only do this when intercepting
                     print("\nsending to gui\n")
                     self.client_request_queue.put(self.client_data)  # we display this in the GUI
                     self.server_request_queue.put(self.parse_data(self.client_data)) # we queue parsed data to be used when forwarding request
@@ -121,7 +128,7 @@ class Server(Thread):
         send_data_thread.start()
 
 
-    def send_data(self, hostname, port, data):
+    def send_data(self, hostname: str, port: int, data: bytes|bytearray):
         hostname = hostname.decode('utf-8')
         print("\nsend data\n")
         remote_socket = None
@@ -140,7 +147,7 @@ class Server(Thread):
                     chunk = remote_socket.recv(self.buffer_size)
                     if not chunk:
                         break
-                    print("reply " + chunk.decode('utf-8'))
+                    #print("reply " + chunk.decode('utf-8'))
                     self.client_socket.sendall(chunk) # send back to browser 
 
 
@@ -157,6 +164,9 @@ class Server(Thread):
             remote_socket.close()
             print(f"err: {e}")
         remote_socket.close()
+
+class Mediator:
+    pass
 
 
 class Repeater:
@@ -175,6 +185,8 @@ class Repeater:
 
         lf_control_request.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         lf_control_response.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        
 
         # Here we set width and height to 1 so we can let the geometry manager expand the widget to fill extra space
         self.request_text = tk.Text(lf_control_request,
@@ -242,22 +254,43 @@ class Intercept:
                                            font=("Roboto", 14),
                                            insertbackground="#00ff22"
                                            )
+        self.intercepted_request.bind("<Button-3>", self.rc_menu_popup)
+        self.rc_menu = tk.Menu(master, tearoff=False)
+        self.rc_menu.add_command(label="Send to repeater", command=self.send_req_to_repeater)
 
         self.intercepted_request.pack()
 
+    def rc_menu_popup(self, e):
+        self.rc_menu.tk_popup(e.x_root, e.y_root)
+
+    # TODO eventually we wanna be able to send the req to any tab
+    def send_req_to_repeater(self):
+        pass
+
 
     def forward_request_action(self):
+        intercepted_request = self.intercepted_request.get("1.0",'end-1c')  # we use end-1c as to not add a newline
+        intercepted_request = intercepted_request.encode()
+
         if self.server_thread and self.server_thread.running:
-                if not self.server_queue.empty():  
-                    request = self.server_queue.get()
-                    print(f"From Server queue: {request}")
-                    webserver = request["server"]
-                    port = request["port"]
-                    data = request["data"]
+                # if not self.server_queue.empty():  
+                #     request = self.server_queue.get()
+                #     print(f"From Server queue: {request}")
+                    
+                if intercepted_request:
+                    outgoing_request = self.server_thread.parse_data(intercepted_request)
+
+                    print(intercepted_request)
+                    print(outgoing_request)
+                
+
+                    webserver = outgoing_request["server"]
+                    port = outgoing_request["port"]
+                    data = outgoing_request["data"]
                     Thread(target=self.server_thread.send_data, args=(webserver, port, data)).start()
                     self.request_sent = True
                 else:
-                    print("queue empty")
+                    print("no request intercepted")
 
         self.intercepted_request.delete('1.0', tk.END)
         self.update_step()
