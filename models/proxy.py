@@ -2,19 +2,17 @@ import queue
 import socket
 import ssl
 import sys
+import itertools
 from threading import Thread
 
 
 class Server(Thread):
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    new_id = itertools.count()
 
     def __init__(self, host, port):
         Thread.__init__(self)
+        self.id = next(Server.new_id)
+        print(self.id)
         self.running = False
         self.server_socket = None
         self.host = host
@@ -25,13 +23,11 @@ class Server(Thread):
         self.client_request_queue = queue.Queue()
         self.client_server_queue = queue.Queue()
 
+        self.client_socket = None
         self.client_data = None
 
-    @staticmethod
-    def get_instance():
-        return Server._instance
-
     def run(self):
+        self.running = True
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -39,26 +35,28 @@ class Server(Thread):
                                           1)  # This is a necessary step since we need to reuse the port immediately
             self.server_socket.bind((self.host, self.port))
             self.server_socket.listen(10)
-            self.running = True
             print(f"{self.server_socket}")
         except KeyboardInterrupt:
             self.stop()
             sys.exit(1)
         except socket.error as e:
             print(e)
+            self.stop()
         self.handle_client()
 
     def handle_client(self):
-        while self.running:
 
+        while self.running:
+            print("handle client")
             # accept incoming connections from client/browser
             try:
                 self.client_socket, client_address = self.server_socket.accept()
                 print(f"{self.client_socket} {client_address[0]} {client_address[1]}")
             except Exception as e:
                 print(e)
+                self.stop()
                 return
-
+            print("handle client")
             # get request from client/browser
             self.client_data = self.client_socket.recv(self.buffer_size)
             request = self.parse_data(self.client_data)
@@ -70,6 +68,7 @@ class Server(Thread):
                 # We don't need to intercept requests with CONNECT method
                 # (TODO: should instead parse the req for methods instead of checking if string is in request)
                 if self.intercepting:
+                    # No need to capture CONNECT reqs
                     if not ("CONNECT" in str(self.client_data)):
                         print("\nsending to queue\n")
                         self.client_request_queue.put(self.client_data)  # we display this in the GUI
@@ -87,8 +86,10 @@ class Server(Thread):
         self.running = False
         if self.server_socket:
             self.server_socket.close()
-            print("killed proxy")
-            print(f"client {self.client_socket}")
+            print("killed server socket")
+        if self.client_socket:
+            self.client_socket.close()
+            print("killed client socket")
 
     @staticmethod
     def parse_data(data):
@@ -111,8 +112,6 @@ class Server(Thread):
         webserver_pos = temp.find(b'/')
         if webserver_pos == -1:
             webserver_pos = len(temp)
-        webserver = ""
-        port = -1
         if port_pos == -1 or webserver_pos < port_pos:
             port = 80
             webserver = temp[:webserver_pos]
@@ -133,8 +132,9 @@ class Server(Thread):
         self.client_data = None
         send_data_thread.start()
 
-    def send_data(self, hostname: str, port: int, data: bytes | bytearray):
-        hostname = hostname.decode('utf-8')
+    def send_data(self, hostname: str, port: int, data: bytes):
+        if not self.running:
+            return
         print("\nsend data\n")
         remote_socket = None
         try:
@@ -168,3 +168,28 @@ class Server(Thread):
             remote_socket.close()
             print(f"err: {e}")
         remote_socket.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

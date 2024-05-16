@@ -11,15 +11,16 @@ class RootWindow:
         self.root.geometry("%dx%d+0+0" % (window_width, window_height))
         self.tab_control = ttk.Notebook(self.root)
 
-        self.setup_tabs()
+        self.intercept_tab = tk.Frame(self.tab_control, bg="#8c8787")
+        self.repeater_tab = tk.Frame(self.tab_control, bg="#8c8787")
+        self.scanner_tab = tk.Frame(self.tab_control, bg="#8c8787")
+
         self.setup_tab_control()
 
         self.tab_control.pack(expand=True, fill="both")
 
     def setup_tabs(self):
-        self.intercept_tab = tk.Frame(self.tab_control, bg="#8c8787")
-        self.repeater_tab = tk.Frame(self.tab_control, bg="#8c8787")
-        self.scanner_tab = tk.Frame(self.tab_control, bg="#8c8787")
+        pass
 
     def setup_tab_control(self):
         self.tab_control.add(self.intercept_tab, text="Intercept")

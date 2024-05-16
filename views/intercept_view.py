@@ -4,7 +4,6 @@ import threading
 
 class InterceptTab:
     def __init__(self, root: tk.Tk, controller):
-        print("Initialized Intercept")
         self.root = root
         self.controller = controller
 
@@ -41,7 +40,7 @@ class InterceptTab:
 
     def get_intercepted_request(self) -> str:
         request = self.intercepted_request.get("1.0",
-                                                           'end-1c')  # we use end-1c as to not add a newline
+                                               'end-1c')  # we use end-1c as to not add a newline
         return request
 
     def clear(self):
@@ -62,13 +61,11 @@ class InterceptTab:
 
     def on_intercept_toggle(self):
         if not self.controller.intercepting:
-            self.controller.intercepting = True
             self.intercept_button['text'] = 'Intercept: on'
             self.controller.toggle_intercept(True)
             self.controller.start_intercepting()
             self.controller.update_loop()
         else:
-            self.controller.intercepting = False
             self.intercept_button['text'] = 'Intercept: off'
             self.controller.stop_intercepting()
             self.controller.toggle_intercept(False)

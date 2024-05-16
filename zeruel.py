@@ -1,6 +1,7 @@
 import tkinter as tk
 
 from controllers.gui_bootstrap import RootWindowController
+from controllers import server_manager
 from models.proxy import Server
 
 HOST = ""
@@ -17,7 +18,6 @@ class Scanner:
         self.master = master
 
 
-
 def app_loop(root, app):
     while True:
         root.update_idletasks()
@@ -26,12 +26,14 @@ def app_loop(root, app):
 
 def main():
     print("[[Zeruel Proxy]]")
-    proxy_server_thread = Server(HOST, PORT)
-    proxy_server_thread.start()
+
+    server = Server(HOST, PORT)
+    server.start()
+    #print(server_manager.server_threads)
     root = tk.Tk()
     root.wm_state('zoomed')
-    app = RootWindowController(root)
-    app_loop(root, app)
+    #app = RootWindowController(root)
+    #app_loop(root, app)
 
 
 if __name__ == "__main__":

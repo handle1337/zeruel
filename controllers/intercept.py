@@ -1,24 +1,22 @@
-import tkinter
-import threading
-from controllers.gui_bootstrap import RootWindow
 import tkinter as tk
+from views.intercept_view import InterceptTab
 from models.intercept import InterceptModel
-from models.proxy import Server
 
 
 class InterceptController:
-    def __init__(self, intercept_tab, intercept_model):
-        self.intercept_tab = intercept_tab
-        self.intercept_model = intercept_model
+    def __init__(self, root):
+        self.intercept_tab = InterceptTab(root, self)
+        self.intercept_model = InterceptModel()
 
         self.intercepting = self.intercept_model.intercepting
 
-    def forward_request(self):
-        request = self.intercept_tab.get_intercepted_request().encode()
+    def forward_request(self, request: str):
+        request = request.encode()
         self.intercept_model.forward_request(request)
 
     def toggle_intercept(self, state: bool):
         self.intercept_model.intercepting = state
+        self.intercepting = state
 
     def update_step(self):
         request = self.intercept_model.get_client_request_from_queue()
@@ -32,7 +30,7 @@ class InterceptController:
             self.intercept_tab.root.after(100, self.update_loop)
 
     def start_intercepting(self):
-        pass
+        self.intercept_model.start_intercepting()
 
     def stop_intercepting(self):
-        pass
+        self.intercept_model.stop_intercepting()
