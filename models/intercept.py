@@ -1,11 +1,12 @@
 import threading
+import queue
 from controllers import server_manager
 
 
 class InterceptModel:
-    def __init__(self):
-        self.server_thread = server_manager.server_threads[0]
-        self.client_request_queue = self.server_thread.client_request_queue
+    def __init__(self, controller):
+        self.server_thread = controller.server
+        self.client_request_queue = controller.client_request_queue
 
         self.intercepting = False
 
@@ -35,5 +36,9 @@ class InterceptModel:
         server_manager.start(self.server_thread, intercept=False)
 
     def get_client_request_from_queue(self):
-        if not self.client_request_queue.empty():
-            return self.client_request_queue.get_nowait().decode("utf-8")
+        try:
+            request = self.client_request_queue.get_nowait().decode('utf-8')
+            print(f"data in queue {request}")
+            return request
+        except queue.Empty:
+            return None

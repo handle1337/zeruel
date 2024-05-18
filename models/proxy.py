@@ -3,6 +3,7 @@ import socket
 import ssl
 import sys
 import itertools
+from controllers import queue_manager
 from threading import Thread
 
 
@@ -10,7 +11,7 @@ class Server(Thread):
     new_id = itertools.count()
 
     def __init__(self, host, port):
-        Thread.__init__(self)
+        super().__init__()
         self.id = next(Server.new_id)
         print(self.id)
         self.running = False
@@ -19,9 +20,6 @@ class Server(Thread):
         self.port = port
         self.buffer_size = 8192
         self.intercepting = False
-
-        self.client_request_queue = queue.Queue()
-        self.client_server_queue = queue.Queue()
 
         self.client_socket = None
         self.client_data = None
@@ -47,16 +45,19 @@ class Server(Thread):
     def handle_client(self):
 
         while self.running:
-            print("handle client")
+            print(f"Intercepting: {self.intercepting}")
+            print("Awaiting connection from client")
             # accept incoming connections from client/browser
             try:
                 self.client_socket, client_address = self.server_socket.accept()
                 print(f"{self.client_socket} {client_address[0]} {client_address[1]}")
+            except socket.timeout:
+                print("Connection timeout, retrying...")
+                continue
             except Exception as e:
                 print(e)
                 self.stop()
                 return
-            print("handle client")
             # get request from client/browser
             self.client_data = self.client_socket.recv(self.buffer_size)
             request = self.parse_data(self.client_data)
@@ -71,7 +72,8 @@ class Server(Thread):
                     # No need to capture CONNECT reqs
                     if not ("CONNECT" in str(self.client_data)):
                         print("\nsending to queue\n")
-                        self.client_request_queue.put(self.client_data)  # we display this in the GUI
+                        queue_manager.client_request_queue.put(self.client_data)  # we display this in the GUI
+                        queue_manager.server_request_queue.put(self.parse_data(self.client_data))
                 else:
                     send_data_thread.start()  # send connection request
 
@@ -132,7 +134,8 @@ class Server(Thread):
         self.client_data = None
         send_data_thread.start()
 
-    def send_data(self, hostname: str, port: int, data: bytes):
+    def send_data(self, hostname: bytes | str, port: int, data: bytes):
+        hostname = hostname.decode('utf-8')
         if not self.running:
             return
         print("\nsend data\n")
@@ -142,7 +145,7 @@ class Server(Thread):
             remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             remote_socket.connect((hostname, port))
             # print("\ndata " + data.decode('utf-8'))
-            print("\nwebserver " + hostname)
+            print("\nwebserver " + str(hostname))
             print("\nport " + str(port))
 
             context = ssl.create_default_context()

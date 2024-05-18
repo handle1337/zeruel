@@ -1,12 +1,14 @@
-import tkinter as tk
+from controllers.queue_manager import client_request_queue
 from views.intercept_view import InterceptTab
 from models.intercept import InterceptModel
 
 
 class InterceptController:
-    def __init__(self, root):
+    def __init__(self, root, server):
+        self.server = server
+        self.client_request_queue = client_request_queue
         self.intercept_tab = InterceptTab(root, self)
-        self.intercept_model = InterceptModel()
+        self.intercept_model = InterceptModel(self)
 
         self.intercepting = self.intercept_model.intercepting
 
@@ -21,6 +23,7 @@ class InterceptController:
     def update_step(self):
         request = self.intercept_model.get_client_request_from_queue()
         if request:
+            print("Request received by controller")
             self.intercept_tab.clear()
             self.intercept_tab.update_intercepted_request_widget(request)
 

@@ -69,4 +69,4 @@ class InterceptTab:
             self.intercept_button['text'] = 'Intercept: off'
             self.controller.stop_intercepting()
             self.controller.toggle_intercept(False)
-            self.controller.update_step()
+            self.clear()

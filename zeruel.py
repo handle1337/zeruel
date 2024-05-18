@@ -1,8 +1,8 @@
+import sys
 import tkinter as tk
 
 from controllers.gui_bootstrap import RootWindowController
 from controllers import server_manager
-from models.proxy import Server
 
 HOST = ""
 PORT = 7121
@@ -27,13 +27,21 @@ def app_loop(root, app):
 def main():
     print("[[Zeruel Proxy]]")
 
-    server = Server(HOST, PORT)
+    server = server_manager.new_server()
     server.start()
-    #print(server_manager.server_threads)
+    print(server_manager.server_threads)
     root = tk.Tk()
+
+    def kill():
+        server_manager.stop_all()
+        root.quit()
+        root.destroy()
+        sys.exit()
+
+    root.protocol('WM_DELETE_WINDOW', kill)
     root.wm_state('zoomed')
-    #app = RootWindowController(root)
-    #app_loop(root, app)
+    app = RootWindowController(root, server)
+    app_loop(root, app)
 
 
 if __name__ == "__main__":
