@@ -1,28 +1,17 @@
 import threading
-from models.proxy import Server
-
-
-def is_queue_empty(queue):
-    if not queue.empty():
-        return True
-    return False
+import queue
+from controllers import server_manager
 
 
 class InterceptModel:
-    def __init__(self):
-        self.server_thread = Server.get_instance()
-        self.client_request_queue = self.server_thread.client_request_queue
+    def __init__(self, controller):
+        self.server_thread = controller.server
+        self.client_request_queue = controller.client_request_queue
 
         self.intercepting = False
 
-        self.request_sent = False
-
     def forward_request(self, request):
         if self.server_thread and self.server_thread.running:
-            # if not self.server_queue.empty():
-            #     request = self.server_queue.get()
-            #     print(f"From Server queue: {request}")
-
             if request:
                 outgoing_request = self.server_thread.parse_data(request)
 
@@ -37,11 +26,19 @@ class InterceptModel:
                 print("no request intercepted")
 
     def start_intercepting(self):
-        self.server_thread.intercepting = True
+        server_manager.stop(self.server_thread)
+        self.server_thread = server_manager.new_server()
+        server_manager.start(self.server_thread, intercept=True)
 
     def stop_intercepting(self):
-        self.server_thread.intercepting = False
+        server_manager.stop(self.server_thread)
+        self.server_thread = server_manager.new_server()
+        server_manager.start(self.server_thread, intercept=False)
 
     def get_client_request_from_queue(self):
-        if not self.client_request_queue.empty():
-            return self.client_request_queue.get_nowait().decode("utf-8")
+        try:
+            request = self.client_request_queue.get_nowait().decode('utf-8')
+            print(f"data in queue {request}")
+            return request
+        except queue.Empty:
+            return None

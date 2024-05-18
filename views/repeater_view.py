@@ -1,5 +1,6 @@
 import tkinter as tk
 
+
 class RepeaterTab:
     def __init__(self, master, proxy_server):
         print("Initialized Repeater")

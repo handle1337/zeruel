@@ -11,13 +11,14 @@ import tkinter as tk
 
 
 class RootWindowController:
-    def __init__(self, root):
-        self.RootWindow = RootWindow(root)
+    def __init__(self, root, server):
+        self.root_window = RootWindow(root)
 
-        self.intercept_controller = InterceptController(InterceptTab, InterceptModel)
+        intercept_tab = self.root_window.intercept_tab
 
-        self.intercept_tab = InterceptTab(self.RootWindow.intercept_tab, self.intercept_controller)
-        self.repeater_tab = InterceptTab(self.RootWindow.repeater_tab, None)
+        self.intercept_controller = InterceptController(intercept_tab, server)
+
+        #self.intercept_tab = InterceptTab(self.RootWindow.repeater_tab, None)
 
     def __del__(self):
         print("RootWindow Destroyed")
