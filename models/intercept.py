@@ -18,7 +18,7 @@ class InterceptModel:
                 print(request)
                 print(outgoing_request)
 
-                webserver = outgoing_request["server"]
+                webserver = outgoing_request["host"]
                 port = outgoing_request["port"]
                 data = outgoing_request["data"]
                 threading.Thread(target=self.server_thread.send_data, args=(webserver, port, data)).start()
