@@ -8,11 +8,6 @@ HOST = ""
 PORT = 7121
 
 
-# TODO: when intercept is turned off, we must forward requests immediately
-# TODO: must also implement ssl.... somehow
-# TODO: instead of turning the proxy on and off we should just change how we handle reqs
-
-
 class Scanner:
     def __init__(self, master):
         self.master = master

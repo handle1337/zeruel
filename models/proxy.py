@@ -141,14 +141,53 @@ class Server(Thread):
     def connect(self):
         pass
 
-    # TODO: move this to future file manager
+    # TODO: move this to future file manager module
     @staticmethod
     def join_with_script_dir(path):
         return os.path.join(os.path.dirname(os.path.abspath(__name__)), path)
 
+    @staticmethod
+    def generate_keypair(path=None):
+        key = crypto.PKey()
+        key.generate_key(crypto.TYPE_RSA, 2048)
+        if path:
+            with open(path, 'w+') as key_file:
+                key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode("utf-8"))
+        return key
+
+    def generate_csr(self, hostname, key, path=None):
+        """
+        :param hostname: Subject root hostname to use when adding SANs
+        :param key: Subject's private key
+        :param path: Optional path for csr request output
+        :return:
+        """
+
+        # gen privkey file for hostname csr
+        san_list = [f"DNS.1:*.{hostname}",
+                    f"DNS.2:{hostname}"]
+
+        csr = crypto.X509Req()
+        csr.get_subject().CN = hostname
+        # SANs are required by modern browsers, so we add them
+        csr.add_extensions([
+            crypto.X509Extension(b"subjectAltName", False, ', '.join(san_list).encode())
+        ])
+        csr.set_pubkey(key)
+        csr.sign(key, "sha256")
+
+        if path:
+            with open(path, 'w+') as csr_file:
+                csr_file.write(crypto.dump_certificate_request(crypto.FILETYPE_PEM, csr).decode("utf-8"))
+        return csr
+
     def generate_certificate(self, hostname: str):
-        host_cert_path = f"{self.certs_path}{hostname}"
+        #ref https://gist.github.com/soarez/9688998
+        # ref: https://stackoverflow.com/questions/10175812/how-to-generate-a-self-signed-ssl-certificate-using-openssl
+
+        host_cert_path = f"{self.certs_path}generated\\{hostname}"
         key_file_path = f"{host_cert_path}\\{hostname}.key"
+        csr_file_path = f"{host_cert_path}\\{hostname}.csr"
         cert_file_path = f"{host_cert_path}\\{hostname}.pem"
 
         if not os.path.isdir(host_cert_path):
@@ -157,31 +196,35 @@ class Server(Thread):
         root_ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(self.cacert, 'rb').read())
         root_ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, open(self.cakey, 'rb').read())
 
-        key = crypto.PKey()
-        key.generate_key(crypto.TYPE_RSA, 2048)
+        print(f"{root_ca_cert} {root_ca_key}")
+
+        key = self.generate_keypair(key_file_path)
+        csr = self.generate_csr(hostname, key, csr_file_path)
+
+        san_list = [f"DNS.1:*.{hostname}",
+                    f"DNS.2:{hostname}"]
+
 
         cert = crypto.X509()
         cert.get_subject().CN = hostname
-        cert.set_serial_number(1000)
+        cert.set_serial_number(int.from_bytes(os.urandom(16), "big") >> 1)
         cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(31536000)
-        cert.set_issuer(root_ca_cert.get_subject())
-        cert.set_subject(cert.get_subject())
-        cert.set_pubkey(key)
-        cert.sign(root_ca_key, 'sha256')
+        cert.gmtime_adj_notAfter(31536000) # 1 year
 
-        # key_dump = crypto.dump_privatekey(crypto.FILETYPE_PEM, key),
-        # cert_dump = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+        cert.add_extensions([
+            crypto.X509Extension(b"subjectAltName", False, ', '.join(san_list).encode())
+        ])
+
+        cert.set_issuer(root_ca_cert.get_subject())
+        cert.set_pubkey(csr.get_pubkey())
+
+        cert.sign(root_ca_key, 'sha256')
 
         with open(cert_file_path, 'w+') as cert_file:
             cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8"))
 
-        with open(key_file_path, 'w+') as key_file:
-            key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode("utf-8"))
-
         return cert_file_path, key_file_path
 
-    # return key if needed to decrypt
 
     def send_data(self, hostname: str, port: int, data: bytes, method: str = None):
         if not self.running:
@@ -194,7 +237,6 @@ class Server(Thread):
 
             if port == 80:
 
-                # print("\ndata " + data.decode('utf-8'))
                 print("\nwebserver " + str(hostname))
                 print("\nport " + str(port))
                 print("\nremote " + str(remote_socket))
@@ -205,38 +247,46 @@ class Server(Thread):
                     chunk = remote_socket.recv(self.buffer_size)
                     if not chunk:
                         break
-                    # print("reply " + chunk.decode('utf-8'))
+
                     self.client_socket.sendall(chunk)  # send back to browser
             else:
 
                 cert_path, key_path = self.generate_certificate(hostname)
+                # cert_path = "C:\\Users\\Andres\\PycharmProjects\\zeruel\\certs\dcert.crt"
+
                 print(cert_path)
 
-                remote_context = ssl.create_default_context()
+                remote_ctx = ssl.create_default_context()
 
-                client_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-                client_context.load_cert_chain(keyfile=key_path, certfile=cert_path)
+                client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
+                client_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+                # client_ctx.load_cert_chain(keyfile=self.certkey, certfile=cert_path)
 
                 self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
 
-                client_ssl_socket = client_context.wrap_socket(self.client_socket, server_side=True)
+                client_ssl_socket = ssl.wrap_socket(sock=self.client_socket,
+                                                    certfile=cert_path,
+                                                    keyfile=key_path,
+                                                    server_side=True)
 
-                remote_ssl_socket = remote_context.wrap_socket(remote_socket, server_hostname=hostname)
+                remote_ssl_socket = remote_ctx.wrap_socket(remote_socket, server_hostname=hostname)
 
                 if method == "CONNECT":
                     pass
                 # remote_ssl_socket.sendall(data)
+
+                # Relay data
+                # TODO: clean this up
                 while True:
                     data = client_ssl_socket.recv(4096)
                     if len(data) == 0:
                         break
                     remote_ssl_socket.sendall(data)
 
-                    #
-
                     chunk = remote_ssl_socket.recv(self.buffer_size)
                     if not chunk:
                         break
+
                     client_ssl_socket.sendall(chunk)  # send back to browser
 
         # except socket.error as e:
