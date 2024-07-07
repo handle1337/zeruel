@@ -32,7 +32,7 @@ class Server(Thread):
         self.certs_path = self.join_with_script_dir("certs\\")
         self.cakey = self.certs_path + "zeruelCA.key"
         self.cacert = self.certs_path + "zeruelCA.crt"
-        self.certkey = self.certs_path + "cert.key"
+        # self.certkey = self.certs_path + "generated\\github.com\\github.com.key"
 
     def run(self):
         self.running = True
@@ -68,7 +68,7 @@ class Server(Thread):
                 print(e)
                 self.stop()
                 return
-            # get request from client/browser
+            # get request from browser
             self.client_data = self.client_socket.recv(self.buffer_size)
             request = self.parse_data(self.client_data)
 
@@ -77,6 +77,9 @@ class Server(Thread):
                                                                        request["port"],
                                                                        request["data"],
                                                                        request["method"]))
+
+                print(request)
+
                 if self.intercepting:
                     # No need to capture CONNECT reqs
                     if request["method"] != "CONNECT":
@@ -86,6 +89,7 @@ class Server(Thread):
                     else:
                         send_data_thread.start()
                 else:
+                    # TODO if https load cert chain for proxy
                     send_data_thread.start()  # send connection request
 
                     # self.server_request_queue.put(
@@ -106,6 +110,9 @@ class Server(Thread):
     def parse_data(data):
         if not data:
             return
+
+        print(data)
+
         data_lines = data.decode('utf-8').split('\n')
         method = data_lines[0].split(' ')[0]
         url = data_lines[0].split(' ')[1]
@@ -182,7 +189,7 @@ class Server(Thread):
         return csr
 
     def generate_certificate(self, hostname: str):
-        #ref https://gist.github.com/soarez/9688998
+        # ref https://gist.github.com/soarez/9688998
         # ref: https://stackoverflow.com/questions/10175812/how-to-generate-a-self-signed-ssl-certificate-using-openssl
 
         host_cert_path = f"{self.certs_path}generated\\{hostname}"
@@ -204,12 +211,11 @@ class Server(Thread):
         san_list = [f"DNS.1:*.{hostname}",
                     f"DNS.2:{hostname}"]
 
-
         cert = crypto.X509()
         cert.get_subject().CN = hostname
         cert.set_serial_number(int.from_bytes(os.urandom(16), "big") >> 1)
         cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(31536000) # 1 year
+        cert.gmtime_adj_notAfter(31536000)  # 1 year
 
         cert.add_extensions([
             crypto.X509Extension(b"subjectAltName", False, ', '.join(san_list).encode())
@@ -225,15 +231,13 @@ class Server(Thread):
 
         return cert_file_path, key_file_path
 
-
     def send_data(self, hostname: str, port: int, data: bytes, method: str = None):
         if not self.running:
             return
 
         try:
 
-            remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            remote_socket.connect((hostname, port))
+            remote_socket = socket.create_connection((hostname, port))
 
             if port == 80:
 
@@ -252,43 +256,62 @@ class Server(Thread):
             else:
 
                 cert_path, key_path = self.generate_certificate(hostname)
-                # cert_path = "C:\\Users\\Andres\\PycharmProjects\\zeruel\\certs\dcert.crt"
 
-                print(cert_path)
+
+                # cert_path = "C:\\Users\\Andres\\PycharmProjects\\zeruel\\certs\dcert.crt"
+                # TODO https: // gist.github.com / oborichkin / d8d0c7823fd6db3abeb25f69352a5299
+
+                print(f"cert:{cert_path}\nkey{key_path}")
 
                 remote_ctx = ssl.create_default_context()
 
                 client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
                 client_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
-                # client_ctx.load_cert_chain(keyfile=self.certkey, certfile=cert_path)
 
-                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+          #      proxy_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+         #       proxy_ssl_ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+
+                #l_proxy_socket = ssl.wrap_socket(self.proxy_socket, server_side=True, certfile=cert_path,
+                #                                 keyfile=key_path)
+
+                # self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+
+                # client_ssl_socket = ssl.wrap_socket(sock=self.client_socket,
+                #                                     certfile=cert_path,
+                #                                     keyfile=key_path,
+                #                                     server_side=True)
+
+                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n") # Necessary DO NOT DELETE
 
                 client_ssl_socket = ssl.wrap_socket(sock=self.client_socket,
                                                     certfile=cert_path,
                                                     keyfile=key_path,
                                                     server_side=True)
+                print(f"ssl client socket {client_ssl_socket}")
 
                 remote_ssl_socket = remote_ctx.wrap_socket(remote_socket, server_hostname=hostname)
 
                 if method == "CONNECT":
                     pass
                 # remote_ssl_socket.sendall(data)
-
+                chunk = None
                 # Relay data
                 # TODO: clean this up
                 while True:
-                    data = client_ssl_socket.recv(4096)
+                    data = client_ssl_socket.recv(4096)  # get req from browser
                     if len(data) == 0:
                         break
-                    remote_ssl_socket.sendall(data)
+                    print(f"outgoing data {data}")
+                    remote_ssl_socket.send(data)
 
                     chunk = remote_ssl_socket.recv(self.buffer_size)
                     if not chunk:
                         break
+                    print(f"received data {chunk}")
 
-                    client_ssl_socket.sendall(chunk)  # send back to browser
+                client_ssl_socket.sendall(chunk)  # send back to browser
 
+                #remote_socket.close()
         # except socket.error as e:
         #     print("Error\n\n\n")
         #     remote_socket.close()
@@ -296,3 +319,4 @@ class Server(Thread):
         # remote_socket.close()
         finally:
             pass
+

@@ -8,7 +8,7 @@ class InterceptModel:
         self.server_thread = controller.server
         self.client_request_queue = controller.client_request_queue
 
-        self.intercepting = False
+        self.intercepting = False #TODO: take this as an arg
 
     def forward_request(self, request):
         if self.server_thread and self.server_thread.running:
@@ -26,6 +26,7 @@ class InterceptModel:
                 print("no request intercepted")
 
     def start_intercepting(self):
+        #TODO: STOP ALL THREADS
         server_manager.stop(self.server_thread)
         self.server_thread = server_manager.new_server()
         server_manager.start(self.server_thread, intercept=True)
