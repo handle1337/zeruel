@@ -1,3 +1,4 @@
+from util.logging_conf import logger
 from models.proxy import Server
 
 server_threads = []
@@ -16,7 +17,7 @@ def start(server, intercept=0):
 
 
 def stop(server_thread):
-    print(f"stopping server thread {server_thread}")
+    logger.info(f"stopping server thread {server_thread}")
     if server_thread.running:
         server_thread.stop()
         server_thread.join()
