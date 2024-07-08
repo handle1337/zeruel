@@ -252,7 +252,8 @@ class Server(Thread):
                     if not chunk:
                         break
 
-                    self.client_socket.sendall(chunk)  # send back to browser
+                    print(f"to browser {chunk}")
+                    self.client_socket.send(chunk)  # send back to browser
             else:
 
                 cert_path, key_path = self.generate_certificate(hostname)
@@ -309,7 +310,7 @@ class Server(Thread):
                         break
                     print(f"received data {chunk}")
 
-                client_ssl_socket.sendall(chunk)  # send back to browser
+                    client_ssl_socket.send(chunk)  # send back to browser
 
                 #remote_socket.close()
         # except socket.error as e:
