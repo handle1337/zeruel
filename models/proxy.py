@@ -5,6 +5,7 @@ import ssl
 import os
 import sys
 import itertools
+from util.logging_conf import logger
 from urllib.parse import urlparse
 from controllers import queue_manager
 from threading import Thread
@@ -22,6 +23,8 @@ class Server(Thread):
         self.proxy_socket = None
         self.host = host
         self.port = port
+
+        # TODO: we need a way to handle buffers better
         self.buffer_size = 8192
         self.intercepting = False
 
@@ -37,6 +40,9 @@ class Server(Thread):
     def run(self):
         self.running = True
         try:
+
+            logger.info(f"Started server thread: {self} with intercept: {self.intercepting} | Server ID: {self.id}")
+
             self.proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             self.proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,
@@ -69,6 +75,7 @@ class Server(Thread):
                 self.stop()
                 return
             # get request from browser
+            # TODO while loop here to only recv buffer matching data len
             self.client_data = self.client_socket.recv(self.buffer_size)
             request = self.parse_data(self.client_data)
 
@@ -85,7 +92,7 @@ class Server(Thread):
                     if request["method"] != "CONNECT":
                         print("\nsending to queue\n")
                         queue_manager.client_request_queue.put(self.client_data)  # we display this in the GUI
-                        queue_manager.server_request_queue.put(self.parse_data(self.client_data))
+                        # queue_manager.server_request_queue.put(self.parse_data(self.client_data))
                     else:
                         send_data_thread.start()
                 else:
@@ -113,7 +120,7 @@ class Server(Thread):
 
         print(data)
 
-        data_lines = data.decode('utf-8').split('\n')
+        data_lines = data.decode('utf-8', errors='ignore').split('\n')
         method = data_lines[0].split(' ')[0]
         url = data_lines[0].split(' ')[1]
 
@@ -248,6 +255,7 @@ class Server(Thread):
 
                 remote_socket.sendall(data)
                 while True:
+                    # TODO: https://stackoverflow.com/a/1716173
                     chunk = remote_socket.recv(self.buffer_size)
                     if not chunk:
                         break
@@ -258,8 +266,6 @@ class Server(Thread):
 
                 cert_path, key_path = self.generate_certificate(hostname)
 
-
-                # cert_path = "C:\\Users\\Andres\\PycharmProjects\\zeruel\\certs\dcert.crt"
                 # TODO https: // gist.github.com / oborichkin / d8d0c7823fd6db3abeb25f69352a5299
 
                 print(f"cert:{cert_path}\nkey{key_path}")
@@ -269,25 +275,13 @@ class Server(Thread):
                 client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
                 client_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
 
-          #      proxy_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-         #       proxy_ssl_ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
-
-                #l_proxy_socket = ssl.wrap_socket(self.proxy_socket, server_side=True, certfile=cert_path,
-                #                                 keyfile=key_path)
-
-                # self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-
-                # client_ssl_socket = ssl.wrap_socket(sock=self.client_socket,
-                #                                     certfile=cert_path,
-                #                                     keyfile=key_path,
-                #                                     server_side=True)
-
-                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n") # Necessary DO NOT DELETE
+                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")  # Necessary DO NOT DELETE
 
                 client_ssl_socket = ssl.wrap_socket(sock=self.client_socket,
                                                     certfile=cert_path,
                                                     keyfile=key_path,
                                                     server_side=True)
+
                 print(f"ssl client socket {client_ssl_socket}")
 
                 remote_ssl_socket = remote_ctx.wrap_socket(remote_socket, server_hostname=hostname)
@@ -298,26 +292,36 @@ class Server(Thread):
                 chunk = None
                 # Relay data
                 # TODO: clean this up
+
+                _chunk = ''
+                _data = ""
+
+               # print(f"dat\n{data}\n")
+                client_data = client_ssl_socket.recv(4096)
+
                 while True:
-                    data = client_ssl_socket.recv(4096)  # get req from browser
-                    if len(data) == 0:
-                        break
-                    print(f"outgoing data {data}")
-                    remote_ssl_socket.send(data)
+                    _data = _data + client_data.decode('utf-8', errors='ignore')
+
+                    print(f"Client:\n{'=' * 200}\n{_data}\n{'=' * 200}")
+
+                    remote_ssl_socket.send(client_data)
 
                     chunk = remote_ssl_socket.recv(self.buffer_size)
                     if not chunk:
-                        break
-                    print(f"received data {chunk}")
+                        pass
+
+                    # For debug
+                    # TODO: calc buff len at beginning of handshake
+
+                    _chunk = _chunk + chunk.decode('utf-8', errors='ignore')
+
+                    print(f"Remote:\n{'=' * 200}\n{_chunk}\n{'=' * 200}")
 
                     client_ssl_socket.send(chunk)  # send back to browser
 
-                #remote_socket.close()
-        # except socket.error as e:
-        #     print("Error\n\n\n")
-        #     remote_socket.close()
-        #     print(f"err: {e}")
-        # remote_socket.close()
+                # remote_socket.close()
+        except socket.error as err:
+            logger.debug(f"{err} | Server ID: {self.id} |\n>Server Thread {self} |\n>Data: {data}")
+
         finally:
             pass
-
