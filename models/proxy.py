@@ -94,13 +94,9 @@ class Server(Thread):
                     else:
                         send_data_thread.start()
                 else:
-                    # TODO if https load cert chain for proxy
                     send_data_thread.start()  # send connection request
 
-                    # self.server_request_queue.put(
-                    #     self.parse_data(self.client_data))  # we queue parsed data to be used when forwarding request
-        # if not send_data_thread.is_alive():
-        #     #send_data_thread.join()
+        # self.stop()
 
     def stop(self):
         self.running = False
@@ -130,16 +126,30 @@ class Server(Thread):
 
         host = ''
 
-        if ':' in url:
-            host = url.split(':')
-            print(host)
-            port = int(host[1])
-        elif "https" in url.split('://')[0]:
-            port = 443
+        if '://' in url:
+            parsed_url = urlparse(url)
+            host = parsed_url.netloc
 
-        host = host[0]
+            # TODO: There's some edge cases here we're not accounting for
+
+            if ':' in host:
+                split_host = host.split(':')
+                host = split_host[0]
+                port = int(split_host[1])
+
+            if parsed_url.scheme == "http":
+                port = 80
+            elif parsed_url.scheme == "https":
+                port = 443
+
+        elif ':' in url:
+            split_host = url.split(':')
+            host = split_host[0]
+            port = int(split_host[1])
 
         result = {"method": method, "host": host, "port": port, "data": data}
+
+        print(f"{result}")
 
         return result
 
@@ -261,17 +271,14 @@ class Server(Thread):
                 remote_socket.sendall(data)
                 while True:
                     # TODO: https://stackoverflow.com/a/1716173
-                    chunk = remote_socket.recv(self.buffer_size)
+                    chunk = remote_socket.recv(4096)
                     if not chunk:
                         break
-
-                    print(f"to browser {chunk}")
+                    print(f"chunk{chunk}\n")
                     self.client_socket.send(chunk)  # send back to browser
             else:
 
                 cert_path, key_path = self.generate_certificate(hostname)
-
-                # TODO https: // gist.github.com / oborichkin / d8d0c7823fd6db3abeb25f69352a5299
 
                 print(f"cert:{cert_path}\nkey{key_path}")
 
