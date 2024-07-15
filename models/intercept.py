@@ -26,8 +26,7 @@ class InterceptModel:
                 print("no request intercepted")
 
     def start_intercepting(self):
-        #TODO: STOP ALL THREADS
-        server_manager.stop(self.server_thread)
+        server_manager.stop_all()
         self.server_thread = server_manager.new_server()
         server_manager.start(self.server_thread, intercept=True)
 
