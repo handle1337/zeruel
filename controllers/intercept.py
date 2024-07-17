@@ -13,7 +13,7 @@ class InterceptController:
         self.intercepting = self.intercept_model.intercepting
 
     def forward_request(self, request: str):
-        request = request.encode()
+        request = request.encode()  # to bytes
         self.intercept_model.forward_request(request)
 
     def toggle_intercept(self, state: bool):
