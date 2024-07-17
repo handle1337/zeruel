@@ -85,8 +85,6 @@ class Server(Thread):
                                                                        request["data"],
                                                                        request["method"]))
 
-                print(request)
-
                 if self.intercepting:
                     # No need to capture CONNECT reqs
                     if request["method"] != "CONNECT":
@@ -118,27 +116,31 @@ class Server(Thread):
         if not data:
             return
 
-        print(data)
+        print(f"Parsing: {data}")
 
         data_lines = data.decode('utf-8', errors='ignore').split('\n')
+
+        print(f"Data lines: {data_lines}")
+
         method = data_lines[0].split(' ')[0]
         url = data_lines[0].split(' ')[1]
+        port = 80
 
-        if "http" in url:
-            port = 80
-            if "https" in url:
-                port = 443
-            parsed_url = urlparse(url)
-            host = parsed_url.netloc
-        else:
-            host, port = data_lines[0].split(' ')[1].split(':')
+        print(url)
 
-        host = re.sub(r'https?://', '', host).replace('/', '')
+        host = ''
 
-        # user_agent = data_lines[1].split(': ')[1]
-        port = int(port)
+        if ':' in url:
+            host = url.split(':')
+            print(host)
+            port = int(host[1])
+        elif "https" in url.split('://')[0]:
+            port = 443
+
+        host = host[0]
+
         result = {"method": method, "host": host, "port": port, "data": data}
-        # print(result)
+
         return result
 
     def forward_data(self):
@@ -177,7 +179,6 @@ class Server(Thread):
         :return:
         """
 
-        # gen privkey file for hostname csr
         san_list = [f"DNS.1:*.{hostname}",
                     f"DNS.2:{hostname}"]
 
@@ -215,8 +216,7 @@ class Server(Thread):
         key = self.generate_keypair(key_file_path)
         csr = self.generate_csr(hostname, key, csr_file_path)
 
-        san_list = [f"DNS.1:*.{hostname}",
-                    f"DNS.2:{hostname}"]
+        # Generate cert
 
         cert = crypto.X509()
         cert.get_subject().CN = hostname
@@ -224,10 +224,15 @@ class Server(Thread):
         cert.gmtime_adj_notBefore(0)
         cert.gmtime_adj_notAfter(31536000)  # 1 year
 
+        # Yes we must add the SANs to the cert as well
+        san_list = [f"DNS.1:*.{hostname}",
+                    f"DNS.2:{hostname}"]
+
         cert.add_extensions([
             crypto.X509Extension(b"subjectAltName", False, ', '.join(san_list).encode())
         ])
 
+        # Sign it
         cert.set_issuer(root_ca_cert.get_subject())
         cert.set_pubkey(csr.get_pubkey())
 
@@ -296,7 +301,7 @@ class Server(Thread):
                 _chunk = ''
                 _data = ""
 
-               # print(f"dat\n{data}\n")
+                # print(f"dat\n{data}\n")
                 client_data = client_ssl_socket.recv(4096)
 
                 while True:
