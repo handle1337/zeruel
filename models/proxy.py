@@ -282,8 +282,6 @@ class Server(Thread):
 
             if port == 80:
                 chunk = None
-                #remote_socket = socket.create_connection((hostname, port))
-
                 threading.Thread(target=self.relay_data, args=(remote_socket,
                                                                self.client_socket,
                                                                data,
@@ -304,7 +302,6 @@ class Server(Thread):
 
                 ssl_client_data = client_ssl_socket.recv(4096)
 
-                #self.relay_data(remote_ssl_socket, client_ssl_socket, ssl_client_data, chunk, port)
                 threading.Thread(target=self.relay_data, args=(remote_ssl_socket,
                                                                client_ssl_socket,
                                                                ssl_client_data,
