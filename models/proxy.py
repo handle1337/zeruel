@@ -3,9 +3,10 @@ import ssl
 import os
 import sys
 import itertools
-from models import parser
+import threading
+
+from util import parser
 from util.logging_conf import logger
-from urllib.parse import urlparse
 from controllers import queue_manager
 from threading import Thread
 from OpenSSL import crypto
@@ -225,10 +226,7 @@ class Server(Thread):
 
             chunk = remote_socket.recv(self.buffer_size)
             if not chunk:
-                if port == 80:
-                    break
-                else:
-                    pass  # TODO: should be break but we need to handle CORS parsing first
+                break
 
             # For debug
             # TODO: calc buff len at beginning of handshake
@@ -246,8 +244,8 @@ class Server(Thread):
                 if port == 80:
                     logger.debug("sending to queue")
                     queue_manager.client_request_queue.put(self.client_data)
-            else:
-                if port == 443:
+                    return
+                else:
                     logger.debug("genning cert")
                     cert_path, key_path = self.generate_certificate(hostname)
                     logger.debug(f"GOT certs: {cert_path, key_path}")
@@ -257,8 +255,8 @@ class Server(Thread):
                     logger.debug(f"GOT: {ssl_client_data}")
                     queue_manager.client_request_queue.put(ssl_client_data)
                     return
-
-            self.send_data(hostname, port, self.client_data)
+            else:
+                self.send_data(hostname, port, self.client_data)
 
     @staticmethod
     def wrap_client_socket(client_socket, cert_path, key_path):
@@ -286,8 +284,11 @@ class Server(Thread):
                 chunk = None
                 #remote_socket = socket.create_connection((hostname, port))
 
-                relay_data_thread = Thread()
-                self.relay_data(remote_socket, self.client_socket, data, chunk, port)
+                threading.Thread(target=self.relay_data, args=(remote_socket,
+                                                               self.client_socket,
+                                                               data,
+                                                               chunk,
+                                                               port)).start()
             else:
 
                 cert_path, key_path = self.generate_certificate(hostname)
@@ -303,7 +304,12 @@ class Server(Thread):
 
                 ssl_client_data = client_ssl_socket.recv(4096)
 
-                self.relay_data(remote_ssl_socket, client_ssl_socket, ssl_client_data, chunk, port)
+                #self.relay_data(remote_ssl_socket, client_ssl_socket, ssl_client_data, chunk, port)
+                threading.Thread(target=self.relay_data, args=(remote_ssl_socket,
+                                                               client_ssl_socket,
+                                                               ssl_client_data,
+                                                               chunk,
+                                                               port)).start()
 
                 # remote_socket.close()
         except socket.error as err:
