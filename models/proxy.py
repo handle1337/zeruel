@@ -3,6 +3,7 @@ import ssl
 import os
 import sys
 import itertools
+from models import parser
 from util.logging_conf import logger
 from urllib.parse import urlparse
 from controllers import queue_manager
@@ -58,7 +59,6 @@ class Server(Thread):
     def handle_client(self):
 
         while self.running:
-            print(f"Intercepting: {self.intercepting}")
             print("Awaiting connection from client")
             # accept incoming connections from client/browser
             try:
@@ -76,7 +76,7 @@ class Server(Thread):
 
             try:
                 self.client_data = self.client_socket.recv(self.buffer_size)
-                parsed_data = self.parse_data(self.client_data)
+                parsed_data = parser.parse_data(self.client_data)
 
                 if parsed_data:
                     # send_data_thread = Thread(target=self.send_data, args=(parsed_data["host"],
@@ -109,56 +109,6 @@ class Server(Thread):
         if self.client_socket:
             self.client_socket.close()
             print("killed client socket")
-
-    @staticmethod
-    def parse_data(data):
-        if not data:
-            return
-
-        # TODO: parse origin/host as well
-        # host : where the req is going
-        # origin : where req is from
-
-        print(f"Parsing: {data}")
-
-        data_lines = data.decode('utf-8', errors='ignore').split('\n')
-
-        print(f"Data lines: {data_lines}")
-
-        method = data_lines[0].split(' ')[0]
-        url = data_lines[0].split(' ')[1]
-        port = 80
-
-        print(url)
-
-        host = ''
-
-        if '://' in url:
-            parsed_url = urlparse(url)
-            host = parsed_url.netloc
-
-            # TODO: There's some edge cases here we're not accounting for
-
-            if ':' in host:
-                split_host = host.split(':')
-                host = split_host[0]
-                port = int(split_host[1])
-
-            if parsed_url.scheme == "http":
-                port = 80
-            elif parsed_url.scheme == "https":
-                port = 443
-
-        elif ':' in url:
-            split_host = url.split(':')
-            host = split_host[0]
-            port = int(split_host[1])
-
-        result = {"method": method, "host": host, "port": port, "data": data}
-
-        print(f"{result}")
-
-        return result
 
     # TODO: what do we do with this?
     def forward_data(self):
@@ -290,16 +240,25 @@ class Server(Thread):
 
     def intercept(self, method, hostname, port):
         if self.intercepting:
+            logger.debug("Intercepting")
             # No need to capture CONNECT reqs
             if method != "CONNECT":
                 if port == 80:
-                    print("\nsending to queue\n")
+                    logger.debug("sending to queue")
                     queue_manager.client_request_queue.put(self.client_data)
-                else:
+            else:
+                if port == 443:
+                    logger.debug("genning cert")
                     cert_path, key_path = self.generate_certificate(hostname)
+                    logger.debug(f"GOT certs: {cert_path, key_path}")
                     client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+                    logger.debug(f"GOT socket ssl client: {client_ssl_socket}")
                     ssl_client_data = client_ssl_socket.recv(4096)
+                    logger.debug(f"GOT: {ssl_client_data}")
                     queue_manager.client_request_queue.put(ssl_client_data)
+                    return
+
+            self.send_data(hostname, port, self.client_data)
 
     @staticmethod
     def wrap_client_socket(client_socket, cert_path, key_path):
@@ -325,7 +284,7 @@ class Server(Thread):
 
             if port == 80:
                 chunk = None
-                remote_socket = socket.create_connection((hostname, port))
+                #remote_socket = socket.create_connection((hostname, port))
 
                 relay_data_thread = Thread()
                 self.relay_data(remote_socket, self.client_socket, data, chunk, port)

@@ -10,7 +10,7 @@ class InterceptModel:
 
         self.intercepting = False #TODO: take this as an arg
 
-    def forward_request(self, request):
+    def forward_request(self, request: bytes):
         if self.server_thread and self.server_thread.running:
             if request:
                 outgoing_request = self.server_thread.parse_data(request)
