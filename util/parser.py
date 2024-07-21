@@ -54,5 +54,5 @@ def parse_data(data):
         port = int(parse_url(resource)[1])
 
     result = {"method": method, "host": host, "port": port, "data": data, "headers": headers}
-
+    print(f"{method} {host} {port} {headers}")
     return result

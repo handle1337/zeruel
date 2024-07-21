@@ -51,7 +51,7 @@ def generate_certificate(certs_path: str, hostname: str, cacert_path, cakey_path
     root_ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(cacert_path, 'rb').read())
     root_ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, open(cakey_path, 'rb').read())
 
-    print(f"{root_ca_cert} {root_ca_key}")
+    #print(f"{root_ca_cert} {root_ca_key}")
 
     key = generate_keypair(key_file_path)
     csr = generate_csr(hostname, key, csr_file_path)

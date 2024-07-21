@@ -38,6 +38,7 @@ class InterceptModel:
 
     def get_client_request_from_queue(self):
         try:
+            #request = self.client_request_queue.get_nowait().decode('utf-8')
             request = self.client_request_queue.get_nowait().decode('utf-8')
             print(f"data in queue {request}")
             return request

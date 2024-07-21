@@ -47,7 +47,7 @@ class Server(Thread):
                                          1)  # This is a necessary step since we need to reuse the port immediately
             self.proxy_socket.bind((self.host, self.port))
             self.proxy_socket.listen(10)
-            print(f"{self.proxy_socket}")
+        #  print(f"{self.proxy_socket}")
         except KeyboardInterrupt:
             self.stop()
             sys.exit(1)
@@ -79,13 +79,6 @@ class Server(Thread):
                 parsed_data = parser.parse_data(self.client_data)
 
                 if parsed_data:
-                    # send_data_thread = Thread(target=self.send_data, args=(parsed_data["host"],
-                    #                                                        parsed_data["port"],
-                    #                                                        parsed_data["data"],
-                    #                                                        parsed_data["method"]))
-                    #
-                    # send_data_thread.start()  # send connection request
-
                     if self.intercepting:
                         self.intercept(hostname=parsed_data["host"],
                                        port=parsed_data["port"],
@@ -139,7 +132,7 @@ class Server(Thread):
             try:
                 _data = _data + client_data.decode('utf-8', errors='ignore')
 
-                print(f"Client:\n{'=' * 200}\n{_data}\n{'=' * 200}")
+                # print(f"Client:\n{'=' * 200}\n{_data}\n{'=' * 200}")
 
                 remote_socket.sendall(client_data)
 
@@ -151,36 +144,43 @@ class Server(Thread):
                 # TODO: calc buff len at beginning of handshake
                 _chunk = _chunk + chunk.decode('utf-8', errors='ignore')
 
-                print(f"Remote:\n{'=' * 200}\n{_chunk}\n{'=' * 200}")
+                # print(f"Remote:\n{'=' * 200}\n{_chunk}\n{'=' * 200}")
 
                 client_socket.send(chunk)  # send back to browser
             except socket.error as error:
                 logger.error(f"ERROR: Unable to relay data {error}")
 
     def intercept(self, method, hostname, port):
-        if self.intercepting:
-            logger.debug("Intercepting")
-            # No need to capture CONNECT reqs
-            if method != "CONNECT":
-                if port == 80:
-                    logger.debug("sending to queue")
-                    queue_manager.client_request_queue.put(self.client_data)
-                    return
-                else:
-                    logger.debug("genning cert")
-                    cert_path, key_path = certs.generate_certificate(self.certs_path,
-                                                                     hostname,
-                                                                     self.cacert,
-                                                                     self.cakey)
-                    logger.debug(f"GOT certs: {cert_path, key_path}")
-                    client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
-                    logger.debug(f"GOT socket ssl client: {client_ssl_socket}")
-                    ssl_client_data = client_ssl_socket.recv(4096)
-                    logger.debug(f"GOT: {ssl_client_data}")
-                    queue_manager.client_request_queue.put(ssl_client_data)
-                    return
-            else:
-                self.send_data(hostname, port, self.client_data)
+        logger.debug("Intercepting")
+
+        if port == 80 and method != "CONNECT":
+            logger.debug("sending to queue")
+            queue_manager.client_request_queue.put(self.client_data)
+            return
+        if port == 443:
+            # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
+            self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            logger.debug("genning cert")
+
+            cert_path, key_path = certs.generate_certificate(self.certs_path,
+                                                             hostname,
+                                                             self.cacert,
+                                                             self.cakey)
+            logger.debug(f"GOT certs: {cert_path, key_path}")
+            client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+            logger.debug(f"GOT socket ssl client: {client_ssl_socket}")
+            ssl_client_data = client_ssl_socket.recv(4096)
+            logger.debug(f"GOT: {ssl_client_data}")
+
+            queue_manager.client_request_queue.put(ssl_client_data)
+
+            remote_socket = socket.create_connection((hostname, port))
+            remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
+            # hacky way of holding the conn so browser doesnt gives us errors
+            remote_ssl_socket.recv(self.buffer_size)
+            return
+        else:
+            pass
 
     @staticmethod
     def wrap_client_socket(client_socket, cert_path, key_path):
@@ -217,9 +217,10 @@ class Server(Thread):
                                                                  self.cacert,
                                                                  self.cakey)
 
-                print(f"cert:{cert_path}\nkey{key_path}")
+                #  print(f"cert:{cert_path}\nkey{key_path}")
 
-                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")  # Necessary DO NOT DELETE
+                # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
+                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
 
                 client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
                 remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
