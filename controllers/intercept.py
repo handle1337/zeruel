@@ -1,4 +1,4 @@
-from controllers.queue_manager import client_request_queue
+from controllers import queue_manager
 from views.intercept_view import InterceptTab
 from models.intercept import InterceptModel
 
@@ -6,9 +6,10 @@ from models.intercept import InterceptModel
 class InterceptController:
     def __init__(self, root, server):
         self.server = server
-        self.client_request_queue = client_request_queue
-        self.intercept_tab = InterceptTab(root, self)
-        self.intercept_model = InterceptModel(self)
+        self.client_request_queue = queue_manager.client_request_queue
+        self.info_queue = queue_manager.info_queue
+        self.intercept_tab = InterceptTab(root, controller=self)
+        self.intercept_model = InterceptModel(controller=self)
 
         self.intercepting = self.intercept_model.intercepting
 
@@ -23,7 +24,6 @@ class InterceptController:
     def update_step(self):
         request = self.intercept_model.get_client_request_from_queue()
         if request:
-            print("Request received by controller")
             self.intercept_tab.clear()
             self.intercept_tab.update_intercepted_request_widget(request)
 

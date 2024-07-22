@@ -1,4 +1,5 @@
 from urllib.parse import urlparse
+from models.proxy import Protocols
 from util.logging_conf import logger
 
 
@@ -12,7 +13,7 @@ def parse_request_headers(request):
 
 
 def parse_url(url: str) -> tuple:
-    host, port = None, None
+    host, port, protocol = None, None, None
 
     if '://' in url:
         parsed_url = urlparse(url)
@@ -24,24 +25,23 @@ def parse_url(url: str) -> tuple:
             port = int(split_host[1])
 
         if parsed_url.scheme == "http":
-            port = 80
+            protocol = Protocols.HTTP
         elif parsed_url.scheme == "https":
-            port = 443
+            protocol = Protocols.HTTPS
 
     elif ':' in url:
         split_host = url.split(':')
         host = split_host[0]
         port = int(split_host[1])
 
-    return host, port
+    return host, port, protocol
 
 
 def parse_data(data):
     if not data:
         return
-    # atm We try 80 by default, we probe for https in proxy, then we change to that later
-    # during proxy operations
-    port = 80
+    # None by default, if port is found in request we use that in other functions on a case-to-case basis
+    port = None
 
     data_lines = data.decode('utf-8', errors='ignore').split('\r\n')
     print(data_lines)
@@ -49,14 +49,27 @@ def parse_data(data):
     resource = data_lines[0].split(' ')[1]
     headers = parse_request_headers(data)
 
+    """
+    Check if request for a resource or host ex:
+    GET /api/users
+    or 
+    GET eu.httpbin.com:80
+    """
     if resource[0] == '/':
         host = headers['Host']
-        print(host)
-        #port = int(parse_url(host)[1])
     else:
-        host = parse_url(resource)[0]
-        #port = int(parse_url(resource)[1])
+        host = resource
 
-    result = {"method": method, "host": host, "port": port, "data": data, "headers": headers}
+    # TODO: There is possible edge-cases where ":" might be used for more than just indicating ports in url/resource
+
+    parsed_host = parse_url(host)
+    protocol = parsed_host[2]
+
+    if parsed_host[1]:
+        port = int(parse_url(host)[1])
+
+    host = parsed_host[0]
+
+    result = {"method": method, "host": host, "port": port, "data": data, "headers": headers, "protocol": protocol}
     print(f"{method} {host} {port} {headers}")
     return result
