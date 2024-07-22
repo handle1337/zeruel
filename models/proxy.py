@@ -30,8 +30,7 @@ class Server(Thread):
         self.client_socket = None
         self.client_data = None
 
-        # TODO: add support for linux
-        self.certs_path = self.join_with_script_dir("certs\\")
+        self.certs_path = self.join_with_script_dir("certs/")
         self.cakey = self.certs_path + "zeruelCA.key"
         self.cacert = self.certs_path + "zeruelCA.crt"
 

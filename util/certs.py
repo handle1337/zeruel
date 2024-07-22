@@ -40,10 +40,10 @@ def generate_csr(hostname, key, path=None):
 def generate_certificate(certs_path: str, hostname: str, cacert_path, cakey_path):
     # ref: https://stackoverflow.com/questions/10175812/how-to-generate-a-self-signed-ssl-certificate-using-openssl
 
-    host_cert_path = f"{certs_path}generated\\{hostname}"
-    key_file_path = f"{host_cert_path}\\{hostname}.key"
-    csr_file_path = f"{host_cert_path}\\{hostname}.csr"
-    cert_file_path = f"{host_cert_path}\\{hostname}.pem"
+    host_cert_path = f"{certs_path}generated/{hostname}"
+    key_file_path = f"{host_cert_path}/{hostname}.key"
+    csr_file_path = f"{host_cert_path}/{hostname}.csr"
+    cert_file_path = f"{host_cert_path}/{hostname}.pem"
 
     if not os.path.isdir(host_cert_path):
         os.mkdir(host_cert_path)
