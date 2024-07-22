@@ -39,19 +39,23 @@ def parse_url(url: str) -> tuple:
 def parse_data(data):
     if not data:
         return
+    # atm We try 80 by default, we probe for https in proxy, then we change to that later
+    # during proxy operations
+    port = 80
 
     data_lines = data.decode('utf-8', errors='ignore').split('\r\n')
-
+    print(data_lines)
     method = data_lines[0].split(' ')[0]
     resource = data_lines[0].split(' ')[1]
     headers = parse_request_headers(data)
 
     if resource[0] == '/':
         host = headers['Host']
-        port = int(parse_url(host)[1])
+        print(host)
+        #port = int(parse_url(host)[1])
     else:
         host = parse_url(resource)[0]
-        port = int(parse_url(resource)[1])
+        #port = int(parse_url(resource)[1])
 
     result = {"method": method, "host": host, "port": port, "data": data, "headers": headers}
     print(f"{method} {host} {port} {headers}")

@@ -84,10 +84,8 @@ class Server(Thread):
                                        port=parsed_data["port"],
                                        method=parsed_data["method"])
                     else:
-                        self.send_data(parsed_data["host"],
-                                       parsed_data["port"],
-                                       parsed_data["data"],
-                                       parsed_data["method"])
+                        self.send_data(parsed_data["host"], parsed_data["data"], parsed_data["method"],
+                                       parsed_data["port"])
 
             except socket.error as e:
                 logger.exception(f"Exception {e} | Server ID: {self.id} |\nData: {self.client_data}")
@@ -196,11 +194,32 @@ class Server(Thread):
         remote_ssl_socket = remote_ctx.wrap_socket(remote_socket, server_hostname=hostname)
         return remote_ssl_socket
 
-    def send_data(self, hostname: str, port: int, data: bytes, method: str = None):
+    def probe_tls_support(self, hostname, port=443):
+        """
+
+        :param hostname: Remote target hostname
+        :param port: Remote target port, default is 443
+        :return: 1 If HTTPS is supported, 0 if it isn't
+        """
+
+        remote_socket = socket.create_connection((hostname, port))
+        try:
+            remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
+            print(f"Version {remote_ssl_socket.version()}")
+            return 1
+        except socket.error:
+            return 0
+
+    def send_data(self, hostname: str, data: bytes, method: str = None, port: int = 80):
         if not self.running:
             return
 
         try:
+
+            if self.probe_tls_support(hostname):
+                port = 443
+            else:
+                port = 80
 
             remote_socket = socket.create_connection((hostname, port))
 
