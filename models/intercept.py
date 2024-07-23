@@ -36,9 +36,10 @@ class InterceptModel:
                     elif protocol == self.protocols.HTTP:
                         threading.Thread(target=self.server_thread.send_data,
                                          args=(webserver, remote_socket, data, 80)).start()
-                    elif protocol == self.protocols.HTTPS:
+                    elif protocol == self.protocols.HTTPS or protocol is None:
                         threading.Thread(target=self.server_thread.send_data,
                                          args=(webserver, remote_socket, data, port)).start()
+
                 except queue.Empty:
                     print("No remote socket")
             else:

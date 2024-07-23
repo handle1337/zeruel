@@ -22,6 +22,7 @@ class InterceptController:
         self.intercepting = state
 
     def update_step(self):
+        #TODO: gui bug here
         request = self.intercept_model.get_client_request_from_queue()
         if request:
             self.intercept_tab.clear()
