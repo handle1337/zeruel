@@ -21,7 +21,6 @@ class InterceptModel:
 
                     remote_socket = self.get_remote_socket_from_queue()
                     parsed_request = parser.parse_data(request)
-                    # TODO: we're parsing our forwarded requests wrong somehow
 
                     print(f"Request: {request}")
                     print(f"Parsed Request: {parsed_request}")
@@ -31,6 +30,7 @@ class InterceptModel:
                     protocol = parsed_request["protocol"]
                     data = parsed_request["data"]
                     method = parsed_request["method"]
+
                     if port:
                         threading.Thread(target=self.server_thread.send_data,
                                          args=(webserver, remote_socket, data, method, port)).start()

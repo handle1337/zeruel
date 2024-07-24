@@ -10,7 +10,7 @@ def parse_request_headers(request):
     split_lines = decoded_request.split('\r\n')
     split_lines.pop(0)
     split_lines = list(filter(None, split_lines))
-    print(f"split filtered lines{split_lines}")
+   # print(f"split filtered lines{split_lines}")
 
     for line in split_lines:
         header = line.split(': ')
