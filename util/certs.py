@@ -42,13 +42,10 @@ def generate_certificate(certs_path: str, hostname: str, cacert_path, cakey_path
 
     # TODO: cleanup, surely theres a better way to globally normalize paths
     cacert_path = os.path.normpath(cacert_path)
-    print(cacert_path)
     cakey_path = os.path.normpath(cakey_path)
 
     host_cert_path = os.path.normpath(f"{certs_path}/generated/{hostname}")
-    print(host_cert_path)
     key_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.key")
-    print(key_file_path)
     csr_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.csr")
     cert_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.pem")
 
