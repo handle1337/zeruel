@@ -16,7 +16,7 @@ class RootWindowController:
 
         intercept_tab = self.root_window.intercept_tab
 
-        self.intercept_controller = InterceptController(intercept_tab, server)
+        self.intercept_controller = InterceptController(root=intercept_tab, server=server)
 
         #self.intercept_tab = InterceptTab(self.RootWindow.repeater_tab, None)
 

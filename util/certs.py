@@ -40,10 +40,14 @@ def generate_csr(hostname, key, path=None):
 def generate_certificate(certs_path: str, hostname: str, cacert_path, cakey_path):
     # ref: https://stackoverflow.com/questions/10175812/how-to-generate-a-self-signed-ssl-certificate-using-openssl
 
-    host_cert_path = f"{certs_path}generated\\{hostname}"
-    key_file_path = f"{host_cert_path}\\{hostname}.key"
-    csr_file_path = f"{host_cert_path}\\{hostname}.csr"
-    cert_file_path = f"{host_cert_path}\\{hostname}.pem"
+    # TODO: cleanup, surely theres a better way to globally normalize paths
+    cacert_path = os.path.normpath(cacert_path)
+    cakey_path = os.path.normpath(cakey_path)
+
+    host_cert_path = os.path.normpath(f"{certs_path}/generated/{hostname}")
+    key_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.key")
+    csr_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.csr")
+    cert_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.pem")
 
     if not os.path.isdir(host_cert_path):
         os.mkdir(host_cert_path)
@@ -51,7 +55,7 @@ def generate_certificate(certs_path: str, hostname: str, cacert_path, cakey_path
     root_ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(cacert_path, 'rb').read())
     root_ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, open(cakey_path, 'rb').read())
 
-    print(f"{root_ca_cert} {root_ca_key}")
+    # print(f"{root_ca_cert} {root_ca_key}")
 
     key = generate_keypair(key_file_path)
     csr = generate_csr(hostname, key, csr_file_path)

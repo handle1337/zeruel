@@ -7,22 +7,42 @@ from controllers import server_manager
 class InterceptModel:
     def __init__(self, controller):
         self.server_thread = controller.server
+        self.protocols = controller.server.protocols
         self.client_request_queue = controller.client_request_queue
+        self.info_queue = controller.info_queue
 
-        self.intercepting = False #TODO: take this as an arg
+        self.intercepting = False  # TODO: take this as an arg
 
     def forward_request(self, request: bytes):
         if self.server_thread and self.server_thread.running:
             if request:
-                parsed_request = parser.parse_data(request)
 
-                print(request)
-                print(parsed_request)
+                try:
 
-                webserver = parsed_request["host"]
-                port = parsed_request["port"]
-                data = parsed_request["data"]
-                threading.Thread(target=self.server_thread.send_data, args=(webserver, port, data)).start()
+                    remote_socket = self.get_remote_socket_from_queue()
+                    parsed_request = parser.parse_data(request)
+
+                    print(f"Request: {request}")
+                    print(f"Parsed Request: {parsed_request}")
+
+                    webserver = parsed_request["host"]
+                    port = parsed_request["port"]
+                    protocol = parsed_request["protocol"]
+                    data = parsed_request["data"]
+                    method = parsed_request["method"]
+
+                    if port:
+                        threading.Thread(target=self.server_thread.send_data,
+                                         args=(webserver, remote_socket, data, method, port)).start()
+                    elif protocol == self.protocols.HTTP:
+                        threading.Thread(target=self.server_thread.send_data,
+                                         args=(webserver, remote_socket, data, method, 80)).start()
+                    elif protocol == self.protocols.HTTPS or protocol is None:
+                        threading.Thread(target=self.server_thread.send_data,
+                                         args=(webserver, remote_socket, data, method, port)).start()
+
+                except queue.Empty:
+                    print("No remote socket")
             else:
                 print("no request intercepted")
 
@@ -38,8 +58,15 @@ class InterceptModel:
 
     def get_client_request_from_queue(self):
         try:
-            request = self.client_request_queue.get_nowait().decode('utf-8')
-            print(f"data in queue {request}")
+            request = self.client_request_queue.get_nowait().decode('utf-8', errors='ignore')
             return request
+        except queue.Empty:
+            return None
+
+    def get_remote_socket_from_queue(self):
+        try:
+            remote_socket = self.info_queue.get_nowait()
+            print(f"data in info queue {remote_socket}")
+            return remote_socket
         except queue.Empty:
             return None

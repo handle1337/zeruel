@@ -1,14 +1,21 @@
+import queue
 import socket
 import ssl
 import os
 import sys
 import itertools
 import threading
+import enum
 
 from util import parser, certs
 from util.logging_conf import logger
 from controllers import queue_manager
 from threading import Thread
+
+
+class Protocols(enum.Enum):
+    HTTP = enum.auto()
+    HTTPS = enum.auto()
 
 
 class Server(Thread):
@@ -23,17 +30,18 @@ class Server(Thread):
         self.host = host
         self.port = port
 
-        # TODO: we need a way to handle buffers better
+        self.protocols = Protocols
+
+        # TODO: we need a way to better handle buffers
         self.buffer_size = 8192
         self.intercepting = False
 
         self.client_socket = None
         self.client_data = None
 
-        # TODO: add support for linux
-        self.certs_path = self.join_with_script_dir("certs\\")
-        self.cakey = self.certs_path + "zeruelCA.key"
-        self.cacert = self.certs_path + "zeruelCA.crt"
+        self.certs_path = self.join_with_script_dir("certs/")
+        self.cakey = self.certs_path + "/zeruelCA.key"
+        self.cacert = self.certs_path + "/zeruelCA.crt"
 
     def run(self):
         self.running = True
@@ -47,7 +55,7 @@ class Server(Thread):
                                          1)  # This is a necessary step since we need to reuse the port immediately
             self.proxy_socket.bind((self.host, self.port))
             self.proxy_socket.listen(10)
-            print(f"{self.proxy_socket}")
+        #  print(f"{self.proxy_socket}")
         except KeyboardInterrupt:
             self.stop()
             sys.exit(1)
@@ -71,30 +79,42 @@ class Server(Thread):
                 print(e)
                 self.stop()
                 return
-            # get request from browser
-            # TODO while loop here to only recv buffer matching data len
 
             try:
                 self.client_data = self.client_socket.recv(self.buffer_size)
                 parsed_data = parser.parse_data(self.client_data)
 
                 if parsed_data:
-                    # send_data_thread = Thread(target=self.send_data, args=(parsed_data["host"],
-                    #                                                        parsed_data["port"],
-                    #                                                        parsed_data["data"],
-                    #                                                        parsed_data["method"]))
-                    #
-                    # send_data_thread.start()  # send connection request
+                    host = parsed_data["host"]
+                    port = 80
+                    data = parsed_data["data"]
+                    method = parsed_data["method"]
+                    parsed_protocol = parsed_data["protocol"]
+
+                    if parsed_data["port"] and parsed_data["port"] != 80:
+                        port = parsed_data["port"]
+                        remote_socket = socket.create_connection((host, port))
+                    elif parsed_protocol:
+                        remote_socket = socket.create_connection((host, port))
+                    else:
+                        # check if port 443 is https, upgrade if so
+                        protocol = self.probe_tls_support(parsed_data["host"], port=443)
+                        if protocol == self.protocols.HTTPS:
+                            port = 443
+                        remote_socket = socket.create_connection((host, port))
 
                     if self.intercepting:
-                        self.intercept(hostname=parsed_data["host"],
-                                       port=parsed_data["port"],
-                                       method=parsed_data["method"])
+                        self.intercept(hostname=host,
+                                       remote_socket=remote_socket,
+                                       method=method,
+                                       port=port,
+                                       data=data)
                     else:
-                        self.send_data(parsed_data["host"],
-                                       parsed_data["port"],
-                                       parsed_data["data"],
-                                       parsed_data["method"])
+                        self.send_data(hostname=host,
+                                       data=data,
+                                       remote_socket=remote_socket,
+                                       method=method,
+                                       port=port)
 
             except socket.error as e:
                 logger.exception(f"Exception {e} | Server ID: {self.id} |\nData: {self.client_data}")
@@ -110,36 +130,23 @@ class Server(Thread):
             self.client_socket.close()
             print("killed client socket")
 
-    # TODO: what do we do with this?
-    def forward_data(self):
-        if not self.client_data:
-            print("no data")
-            return
-        request = self.parse_data(self.client_data)
-        send_data_thread = Thread(target=self.send_data, args=(request["server"],
-                                                               request["port"],
-                                                               request["data"]))
-        self.client_data = None
-        send_data_thread.start()
-
     def connect(self):
         pass
 
     # TODO: move this to future file manager module
     @staticmethod
     def join_with_script_dir(path):
-        return os.path.join(os.path.dirname(os.path.abspath(__name__)), path)
+        return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__name__)), path))
 
-    def relay_data(self, remote_socket, client_socket, client_data, port):
-        # TODO: port only for debug rn, delete later
-
-        _data = ''
-        _chunk = ''
+    def relay_data(self, remote_socket, client_socket, client_data):
+        print(client_data)
+        # _data = ''
+        # _chunk = ''
         while True:
             try:
-                _data = _data + client_data.decode('utf-8', errors='ignore')
-
-                print(f"Client:\n{'=' * 200}\n{_data}\n{'=' * 200}")
+                # _data = _data + client_data.decode('utf-8', errors='ignore')
+                # print(f"Client:\n{'=' * 200}\n{_data}\n{'=' * 200}")
+                parsed_data = parser.parse_data(client_data)
 
                 remote_socket.sendall(client_data)
 
@@ -147,40 +154,61 @@ class Server(Thread):
                 if not chunk:
                     break
 
-                # For debug
                 # TODO: calc buff len at beginning of handshake
-                _chunk = _chunk + chunk.decode('utf-8', errors='ignore')
+                # _chunk = _chunk + chunk.decode('utf-8', errors='ignore')
 
-                print(f"Remote:\n{'=' * 200}\n{_chunk}\n{'=' * 200}")
+                # print(f"Remote:\n{'=' * 200}\n{_chunk}\n{'=' * 200}")
 
-                client_socket.send(chunk)  # send back to browser
+                # If intercepting we force browser to wait
+                # if self.intercepting:
+                #     client_socket.send(chunk)
+
+                # client_socket.send(b"HTTP/1.1 100 Continue\r\n\r\n")
+                # else:
+                #     client_socket.send(chunk)  # send back to browser
+                client_socket.send(chunk)
             except socket.error as error:
                 logger.error(f"ERROR: Unable to relay data {error}")
 
-    def intercept(self, method, hostname, port):
-        if self.intercepting:
-            logger.debug("Intercepting")
-            # No need to capture CONNECT reqs
-            if method != "CONNECT":
-                if port == 80:
-                    logger.debug("sending to queue")
-                    queue_manager.client_request_queue.put(self.client_data)
-                    return
-                else:
-                    logger.debug("genning cert")
-                    cert_path, key_path = certs.generate_certificate(self.certs_path,
-                                                                     hostname,
-                                                                     self.cacert,
-                                                                     self.cakey)
-                    logger.debug(f"GOT certs: {cert_path, key_path}")
-                    client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
-                    logger.debug(f"GOT socket ssl client: {client_ssl_socket}")
-                    ssl_client_data = client_ssl_socket.recv(4096)
-                    logger.debug(f"GOT: {ssl_client_data}")
-                    queue_manager.client_request_queue.put(ssl_client_data)
-                    return
-            else:
-                self.send_data(hostname, port, self.client_data)
+    def intercept(self, method, hostname, remote_socket, port, data):
+
+        protocol = self.probe_tls_support(hostname, port)
+
+        if protocol == self.protocols.HTTP and method != "CONNECT":
+            logger.debug("sending to queue")
+            queue_manager.client_request_queue.put(self.client_data)
+            queue_manager.info_queue.put(remote_socket)
+            return
+
+        if protocol == self.protocols.HTTPS:
+
+            # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
+            self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+
+            ssl_remote_socket = self.wrap_remote_socket(remote_socket, hostname)
+
+            logger.debug("genning cert")
+            cert_path, key_path = certs.generate_certificate(self.certs_path,
+                                                             hostname,
+                                                             self.cacert,
+                                                             self.cakey)
+
+            logger.debug(f"GOT certs: {cert_path, key_path}")
+            ssl_client_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+
+            logger.debug(f"GOT socket ssl client: {ssl_client_socket}")
+            ssl_client_data = ssl_client_socket.recv(4096)
+
+            # logger.debug(f"GOT: {ssl_client_data}")
+            print(f"GOT: {ssl_client_data}")
+            queue_manager.client_request_queue.put(ssl_client_data)
+
+            queue_manager.info_queue.put(ssl_remote_socket)
+            queue_manager.client_socket_queue.put(ssl_client_socket)
+
+            return
+        else:
+            pass
 
     @staticmethod
     def wrap_client_socket(client_socket, cert_path, key_path):
@@ -196,42 +224,90 @@ class Server(Thread):
         remote_ssl_socket = remote_ctx.wrap_socket(remote_socket, server_hostname=hostname)
         return remote_ssl_socket
 
-    def send_data(self, hostname: str, port: int, data: bytes, method: str = None):
+    def probe_tls_support(self, hostname, port=443) -> enum.Enum:
+        """
+
+        :param hostname: Remote target hostname
+        :param port: Remote target port, default is 443
+        :return: Protocol enum
+        """
+
+        remote_socket = socket.create_connection((hostname, port))
+        try:
+            remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
+            print(f"Version {remote_ssl_socket.version()} host: {hostname}")
+            return self.protocols.HTTPS
+        except socket.error:
+            return self.protocols.HTTP
+
+    def send_data(self, hostname: str, remote_socket, data: bytes, method=None, port: int = None):
         if not self.running:
             return
 
         try:
 
-            remote_socket = socket.create_connection((hostname, port))
+            protocol = self.protocols.HTTP
 
-            if port == 80:
+            if port != 80:
+                protocol = self.probe_tls_support(hostname)
+
+            print(f"Sending to {hostname}:{port}")
+            print(f"Data {data}")
+            print(f"Protocol {protocol}")
+            print(f"r_sock {remote_socket}")
+            print(f"c_sock {self.client_socket}")
+            print(f"method {method}")
+
+            if protocol == self.protocols.HTTP:
 
                 threading.Thread(target=self.relay_data, args=(remote_socket,
                                                                self.client_socket,
-                                                               data,
-                                                               port)).start()
-            else:
+                                                               data)).start()
+            elif protocol == self.protocols.HTTPS:
 
-                cert_path, key_path = certs.generate_certificate(self.certs_path,
-                                                                 hostname,
-                                                                 self.cacert,
-                                                                 self.cakey)
+                # When intercepting the remote socket gets wrapped, we don't need to wrap it again
+                if not self.intercepting:
+                    # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
+                    self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
+                    cert_path, key_path = certs.generate_certificate(self.certs_path,
+                                                                     hostname,
+                                                                     self.cacert,
+                                                                     self.cakey)
+                    print(f"certs {cert_path} {key_path}")
+                    client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+                    ssl_client_data = client_ssl_socket.recv(4096)
 
-                print(f"cert:{cert_path}\nkey{key_path}")
+                    # we send ssl data, and not the data arg which is populated by a CONNECT request.
+                    # CONNECT requests must not reach target server, they are to establish a conn with the proxy
+                    # essentially asking it to forward the TCP conn to the remote target
+                    threading.Thread(target=self.relay_data, args=(remote_ssl_socket,
+                                                                   client_ssl_socket,
+                                                                   ssl_client_data)).start()
+                else:
+                    """ 
+                    an ssl wrapped client socket is passed to the queue in Server.intercept(). 
+                    if nothing is passed we must wrap the client socket here
+                    """
+                    try:
 
-                self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")  # Necessary DO NOT DELETE
+                        client_ssl_socket = queue_manager.client_socket_queue.get_nowait()
+                    except queue.Empty as e:
 
-                client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
-                remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
+                        cert_path, key_path = certs.generate_certificate(self.certs_path,
+                                                                         hostname,
+                                                                         self.cacert,
+                                                                         self.cakey)
+                        client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
 
-                ssl_client_data = client_ssl_socket.recv(4096)
+                        print(f"{e}: wrapping socket {client_ssl_socket} with {cert_path} {key_path}")
 
-                threading.Thread(target=self.relay_data, args=(remote_ssl_socket,
-                                                               client_ssl_socket,
-                                                               ssl_client_data,
-                                                               port)).start()
+                    remote_ssl_socket = remote_socket  # we infer that remote socket is wrapped in Server.intercept()
 
-                # remote_socket.close()
+                    threading.Thread(target=self.relay_data, args=(remote_ssl_socket,
+                                                                   client_ssl_socket,
+                                                                   data)).start()
+
         except socket.error as err:
             logger.debug(f"{err} | Server ID: {self.id} |\n>Server Thread {self} |\n>Data: {data}")
 
