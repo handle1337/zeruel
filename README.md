@@ -26,7 +26,6 @@ A small MITM proxy tool with a GUI
 
 - HTTP/HTTPS request intercept
 - HTTP/HTTPS request modification on-the-fly
-  - Note: being able to send out a modified HTTPS request is still a WIP
 - Multithreaded sockets
 - Dynamic SSL certificate generation 
 
