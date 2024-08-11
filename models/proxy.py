@@ -139,15 +139,8 @@ class Server(Thread):
         return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__name__)), path))
 
     def relay_data(self, remote_socket, client_socket, client_data):
-        print(client_data)
-        # _data = ''
-        # _chunk = ''
         while True:
             try:
-                # _data = _data + client_data.decode('utf-8', errors='ignore')
-                # print(f"Client:\n{'=' * 200}\n{_data}\n{'=' * 200}")
-                parsed_data = parser.parse_data(client_data)
-
                 remote_socket.sendall(client_data)
 
                 chunk = remote_socket.recv(self.buffer_size)
@@ -155,18 +148,8 @@ class Server(Thread):
                     break
 
                 # TODO: calc buff len at beginning of handshake
-                # _chunk = _chunk + chunk.decode('utf-8', errors='ignore')
-
-                # print(f"Remote:\n{'=' * 200}\n{_chunk}\n{'=' * 200}")
-
-                # If intercepting we force browser to wait
-                # if self.intercepting:
-                #     client_socket.send(chunk)
-
-                # client_socket.send(b"HTTP/1.1 100 Continue\r\n\r\n")
-                # else:
-                #     client_socket.send(chunk)  # send back to browser
                 client_socket.send(chunk)
+
             except socket.error as error:
                 logger.error(f"ERROR: Unable to relay data {error}")
 
