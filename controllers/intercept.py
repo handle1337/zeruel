@@ -12,6 +12,7 @@ class InterceptController:
         self.intercept_model = InterceptModel(controller=self)
 
         self.intercepting = self.intercept_model.intercepting
+        self.intercepted_request = None
 
     def forward_request(self, request: str):
         request = request.encode()  # to bytes
@@ -21,17 +22,15 @@ class InterceptController:
         self.intercept_model.intercepting = state
         self.intercepting = state
 
-    def update_step(self):
-        #TODO: gui bug here
-        request = self.intercept_model.get_client_request_from_queue()
-        if request:
+    def update(self):
+        if self.intercepted_request:
             self.intercept_tab.clear()
-            self.intercept_tab.update_intercepted_request_widget(request)
-
-    def update_loop(self):
-        if self.intercepting:
-            self.update_step()
-            self.intercept_tab.root.after(100, self.update_loop)
+            self.intercept_tab.update_intercepted_request_widget(self.intercepted_request)
+            self.intercepted_request = None
+        else:
+            self.intercepted_request = self.intercept_model.get_client_request_from_queue()
+            self.intercept_tab.update_intercepted_request_widget(self.intercepted_request)
+            self.intercept_tab.root.after(100, self.update)
 
     def start_intercepting(self):
         self.intercept_model.start_intercepting()
