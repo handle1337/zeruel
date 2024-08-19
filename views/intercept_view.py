@@ -1,6 +1,6 @@
 import tkinter as tk
+from controllers import repeater
 from tkinter import ttk
-import threading
 
 
 class InterceptTab:
@@ -27,7 +27,7 @@ class InterceptTab:
                                                   )
         self.intercepted_request_widget.bind("<Button-3>", self.rc_menu_popup)
         self.rc_menu = tk.Menu(root, tearoff=False)
-        #     self.rc_menu.add_command(label="Send to repeater", command=self.send_req_to_repeater)
+        self.rc_menu.add_command(label="Send to repeater", command=self._on_send_request_to_repeater)
 
         self.intercepted_request_widget.pack()
 
@@ -68,3 +68,9 @@ class InterceptTab:
             self.controller.stop_intercepting()
             self.controller.toggle_intercept(False)
             self.clear()
+
+    def _on_send_request_to_repeater(self):
+        request = self.get_intercepted_request()
+        repeater.update_request_widget(request)
+
+

@@ -1,13 +1,13 @@
 import tkinter as tk
 
 
-class RepeaterTab:
-    def __init__(self, master, proxy_server):
-        print("Initialized Repeater")
-        self.master = master
-        self.proxy_server = proxy_server
 
-        lf_control_repeater = tk.LabelFrame(self.master, text="Repeater", bg="#a8a8a8", foreground='black')
+class RepeaterTab:
+    def __init__(self, root: tk.Tk):
+        print("Initialized Repeater")
+        self.root = root
+
+        lf_control_repeater = tk.LabelFrame(self.root, text="Repeater", bg="#a8a8a8", foreground='black')
         lf_control_repeater.pack(fill=tk.BOTH, expand=True)
 
         intercept_button = tk.Button(lf_control_repeater, text="Send", bg="#ededed", foreground='black', width=20)
@@ -44,3 +44,8 @@ class RepeaterTab:
 
         self.request_text.pack(fill=tk.BOTH, expand=True)
         self.response_text.pack(fill=tk.BOTH, expand=True)
+
+    def update_request_widget(self, data: str):
+        self.request_text.insert(tk.END, data)
+        self.request_text.see(tk.END)
+
