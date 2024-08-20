@@ -44,10 +44,15 @@ def generate_certificate(certs_path: str, hostname: str, cacert_path, cakey_path
     cacert_path = os.path.normpath(cacert_path)
     cakey_path = os.path.normpath(cakey_path)
 
-    host_cert_path = os.path.normpath(f"{certs_path}/generated/{hostname}")
+    generated_dir_path = os.path.normpath(f"{certs_path}/generated/")
+
+    host_cert_path = os.path.normpath(f"{generated_dir_path}/{hostname}")
     key_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.key")
     csr_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.csr")
     cert_file_path = os.path.normpath(f"{host_cert_path}/{hostname}.pem")
+
+    if not os.path.isdir(generated_dir_path):
+        os.mkdir(generated_dir_path)
 
     if not os.path.isdir(host_cert_path):
         os.mkdir(host_cert_path)

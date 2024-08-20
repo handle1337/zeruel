@@ -195,10 +195,9 @@ class Server(Thread):
 
     @staticmethod
     def wrap_client_socket(client_socket, cert_path, key_path):
-        client_ssl_socket = ssl.wrap_socket(sock=client_socket,
-                                            certfile=cert_path,
-                                            keyfile=key_path,
-                                            server_side=True)
+        client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        client_ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        client_ssl_socket = client_ctx.wrap_socket(sock=client_socket, server_side=True)
         return client_ssl_socket
 
     @staticmethod
