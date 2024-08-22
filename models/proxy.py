@@ -1,24 +1,18 @@
 import queue
 import socket
-import ssl
 import os
 import sys
 import itertools
 import threading
-import enum
 
 from util import parser, certs
 from util.logging_conf import logger
 from controllers import queue_manager
-from threading import Thread
+from util import net
+from util.net import Protocols
 
 
-class Protocols(enum.Enum):
-    HTTP = enum.auto()
-    HTTPS = enum.auto()
-
-
-class Server(Thread):
+class Server(threading.Thread):
     new_id = itertools.count()
 
     def __init__(self, host, port):
@@ -30,8 +24,6 @@ class Server(Thread):
         self.host = host
         self.port = port
 
-        self.protocols = Protocols
-
         # TODO: we need a way to better handle buffers
         self.buffer_size = 8192
         self.intercepting = False
@@ -39,7 +31,7 @@ class Server(Thread):
         self.client_socket = None
         self.client_data = None
 
-        self.certs_path = self.join_with_script_dir("certs/")
+        self.certs_path = self._join_with_script_dir("certs/")
         self.cakey = self.certs_path + "/zeruelCA.key"
         self.cacert = self.certs_path + "/zeruelCA.crt"
 
@@ -98,8 +90,8 @@ class Server(Thread):
                         remote_socket = socket.create_connection((host, port))
                     else:
                         # check if port 443 is https, upgrade if so
-                        protocol = self.probe_tls_support(parsed_data["host"], port=443)
-                        if protocol == self.protocols.HTTPS:
+                        protocol = net.probe_tls_support(parsed_data["host"], port=443)
+                        if protocol == Protocols.HTTPS:
                             port = 443
                         remote_socket = socket.create_connection((host, port))
 
@@ -130,12 +122,9 @@ class Server(Thread):
             self.client_socket.close()
             print("killed client socket")
 
-    def connect(self):
-        pass
-
     # TODO: move this to future file manager module
     @staticmethod
-    def join_with_script_dir(path):
+    def _join_with_script_dir(path):
         return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__name__)), path))
 
     def relay_data(self, remote_socket, client_socket, client_data):
@@ -155,20 +144,20 @@ class Server(Thread):
 
     def intercept(self, method, hostname, remote_socket, port, data):
 
-        protocol = self.probe_tls_support(hostname, port)
+        protocol = net.probe_tls_support(hostname, port)
 
-        if protocol == self.protocols.HTTP and method != "CONNECT":
+        if protocol == Protocols.HTTP and method != "CONNECT":
             logger.debug("sending to queue")
             queue_manager.client_request_queue.put(self.client_data)
             queue_manager.info_queue.put(remote_socket)
             return
 
-        if protocol == self.protocols.HTTPS:
+        if protocol == Protocols.HTTPS:
 
             # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
             self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
 
-            ssl_remote_socket = self.wrap_remote_socket(remote_socket, hostname)
+            ssl_remote_socket = net.wrap_remote_socket(remote_socket, hostname)
 
             logger.debug("genning cert")
             cert_path, key_path = certs.generate_certificate(self.certs_path,
@@ -177,7 +166,7 @@ class Server(Thread):
                                                              self.cakey)
 
             logger.debug(f"GOT certs: {cert_path, key_path}")
-            ssl_client_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+            ssl_client_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
 
             logger.debug(f"GOT socket ssl client: {ssl_client_socket}")
             ssl_client_data = ssl_client_socket.recv(4096)
@@ -193,71 +182,42 @@ class Server(Thread):
         else:
             pass
 
-    @staticmethod
-    def wrap_client_socket(client_socket, cert_path, key_path):
-        client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        client_ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
-        client_ssl_socket = client_ctx.wrap_socket(sock=client_socket, server_side=True)
-        return client_ssl_socket
-
-    @staticmethod
-    def wrap_remote_socket(remote_socket, hostname):
-        remote_ctx = ssl.create_default_context()
-        remote_ssl_socket = remote_ctx.wrap_socket(remote_socket, server_hostname=hostname)
-        return remote_ssl_socket
-
-    def probe_tls_support(self, hostname, port=443) -> enum.Enum:
-        """
-
-        :param hostname: Remote target hostname
-        :param port: Remote target port, default is 443
-        :return: Protocol enum
-        """
-
-        remote_socket = socket.create_connection((hostname, port))
-        try:
-            remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
-            print(f"Version {remote_ssl_socket.version()} host: {hostname}")
-            return self.protocols.HTTPS
-        except socket.error:
-            return self.protocols.HTTP
-
     def send_data(self, hostname: str, remote_socket, data: bytes, method=None, port: int = None):
         if not self.running:
             return
 
         try:
 
-            protocol = self.protocols.HTTP
+            protocol = Protocols.HTTP
 
             if port != 80:
-                protocol = self.probe_tls_support(hostname)
+                protocol = net.probe_tls_support(hostname)
 
-            print(f"Sending to {hostname}:{port}")
-            print(f"Data {data}")
-            print(f"Protocol {protocol}")
-            print(f"r_sock {remote_socket}")
-            print(f"c_sock {self.client_socket}")
-            print(f"method {method}")
+            # print(f"Sending to {hostname}:{port}")
+            # print(f"Data {data}")
+            # print(f"Protocol {protocol}")
+            # print(f"r_sock {remote_socket}")
+            # print(f"c_sock {self.client_socket}")
+            # print(f"method {method}")
 
-            if protocol == self.protocols.HTTP:
+            if protocol == Protocols.HTTP:
 
                 threading.Thread(target=self.relay_data, args=(remote_socket,
                                                                self.client_socket,
                                                                data)).start()
-            elif protocol == self.protocols.HTTPS:
+            elif protocol == Protocols.HTTPS:
 
                 # When intercepting the remote socket gets wrapped, we don't need to wrap it again
                 if not self.intercepting:
                     # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
                     self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-                    remote_ssl_socket = self.wrap_remote_socket(remote_socket, hostname)
+                    remote_ssl_socket = net.wrap_remote_socket(remote_socket, hostname)
                     cert_path, key_path = certs.generate_certificate(self.certs_path,
                                                                      hostname,
                                                                      self.cacert,
                                                                      self.cakey)
                     print(f"certs {cert_path} {key_path}")
-                    client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+                    client_ssl_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
                     ssl_client_data = client_ssl_socket.recv(4096)
 
                     # we send ssl data, and not the data arg which is populated by a CONNECT request.
@@ -280,7 +240,7 @@ class Server(Thread):
                                                                          hostname,
                                                                          self.cacert,
                                                                          self.cakey)
-                        client_ssl_socket = self.wrap_client_socket(self.client_socket, cert_path, key_path)
+                        client_ssl_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
 
                         print(f"{e}: wrapping socket {client_ssl_socket} with {cert_path} {key_path}")
 

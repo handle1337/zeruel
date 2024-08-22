@@ -1,13 +1,12 @@
 import threading
 import queue
-from util import parser
+from util import parser, net
 from controllers import server_manager
 
 
 class InterceptModel:
     def __init__(self, controller):
         self.server_thread = controller.server
-        self.protocols = controller.server.protocols
         self.client_request_queue = controller.client_request_queue
         self.info_queue = controller.info_queue
 
@@ -34,10 +33,10 @@ class InterceptModel:
                     if port:
                         threading.Thread(target=self.server_thread.send_data,
                                          args=(webserver, remote_socket, data, method, port)).start()
-                    elif protocol == self.protocols.HTTP:
+                    elif protocol == net.Protocols.HTTP:
                         threading.Thread(target=self.server_thread.send_data,
                                          args=(webserver, remote_socket, data, method, 80)).start()
-                    elif protocol == self.protocols.HTTPS or protocol is None:
+                    elif protocol == net.Protocols.HTTPS or protocol is None:
                         threading.Thread(target=self.server_thread.send_data,
                                          args=(webserver, remote_socket, data, method, port)).start()
 
