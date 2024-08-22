@@ -128,19 +128,24 @@ class Server(threading.Thread):
         return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__name__)), path))
 
     def relay_data(self, remote_socket, client_socket, client_data):
+        response = b''
         while True:
             try:
                 remote_socket.sendall(client_data)
 
+                # TODO: calc buff len at beginning of handshake
                 chunk = remote_socket.recv(self.buffer_size)
                 if not chunk:
                     break
+                response = response + chunk
 
-                # TODO: calc buff len at beginning of handshake
+                # send data back to browser
                 client_socket.send(chunk)
 
             except socket.error as error:
                 logger.error(f"ERROR: Unable to relay data {error}")
+                return
+        queue_manager.server_response_queue.put(response)
 
     def intercept(self, method, hostname, remote_socket, port, data):
 
