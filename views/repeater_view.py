@@ -1,5 +1,5 @@
 import tkinter as tk
-
+from util import net
 
 
 class RepeaterTab:
@@ -10,8 +10,13 @@ class RepeaterTab:
         lf_control_repeater = tk.LabelFrame(self.root, text="Repeater", bg="#a8a8a8", foreground='black')
         lf_control_repeater.pack(fill=tk.BOTH, expand=True)
 
-        intercept_button = tk.Button(lf_control_repeater, text="Send", bg="#ededed", foreground='black', width=20)
-        intercept_button.pack(side=tk.TOP, anchor=tk.NW)
+        send_request_button = tk.Button(lf_control_repeater,
+                                     text="Send",
+                                     bg="#ededed",
+                                     foreground='black',
+                                     width=20,
+                                     command=self._send_request)
+        send_request_button.pack(side=tk.TOP, anchor=tk.NW)
 
         lf_control_request = tk.LabelFrame(lf_control_repeater, text="Request", bg="#a8a8a8", foreground='black')
         lf_control_response = tk.LabelFrame(lf_control_repeater, text="Response", bg="#a8a8a8", foreground='black')
@@ -45,7 +50,23 @@ class RepeaterTab:
         self.request_text.pack(fill=tk.BOTH, expand=True)
         self.response_text.pack(fill=tk.BOTH, expand=True)
 
-    def update_request_widget(self, data: str):
-        self.request_text.insert(tk.END, data)
-        self.request_text.see(tk.END)
+    def _get_request(self) -> str:
+        request = self.request_text.get("1.0",
+                                               'end-1c')  # we use end-1c as to not add a newline
+        return request
+
+    def _send_request(self):
+        request = self._get_request()
+        print(request)
+        response = net.send_request(request.encode()) # TODO: use threads here
+        if response:
+            self.update_textbox_widget(self.response_text, response)
+        else:
+            print("No data")
+
+
+    def update_textbox_widget(self, root, data: str):
+        root.delete('1.0', tk.END)
+        root.insert(tk.END, data)
+        root.see(tk.END)
 

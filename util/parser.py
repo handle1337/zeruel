@@ -1,5 +1,5 @@
 from urllib.parse import urlparse
-from models.proxy import Protocols
+from util.enums import Protocols
 from util.logging_conf import logger
 
 
@@ -48,7 +48,7 @@ def parse_url(url: str) -> tuple:
     return host, port, protocol
 
 
-def parse_data(data):
+def parse_data(data: bytes):
     if not data:
         return
     # None by default, if port is found in request we use that in other functions on a case-to-case basis

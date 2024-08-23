@@ -9,7 +9,7 @@ from util import parser, certs
 from util.logging_conf import logger
 from controllers import queue_manager
 from util import net
-from util.net import Protocols
+from util.enums import Protocols
 
 
 class Server(threading.Thread):
@@ -56,6 +56,7 @@ class Server(threading.Thread):
             self.stop()
         self.handle_client()
 
+
     def handle_client(self):
 
         while self.running:
@@ -78,22 +79,20 @@ class Server(threading.Thread):
 
                 if parsed_data:
                     host = parsed_data["host"]
-                    port = 80
                     data = parsed_data["data"]
                     method = parsed_data["method"]
                     parsed_protocol = parsed_data["protocol"]
-
-                    if parsed_data["port"] and parsed_data["port"] != 80:
+                    if parsed_data["port"]:
                         port = parsed_data["port"]
-                        remote_socket = socket.create_connection((host, port))
                     elif parsed_protocol:
-                        remote_socket = socket.create_connection((host, port))
+                        port =  parsed_protocol
                     else:
-                        # check if port 443 is https, upgrade if so
-                        protocol = net.probe_tls_support(parsed_data["host"], port=443)
-                        if protocol == Protocols.HTTPS:
-                            port = 443
-                        remote_socket = socket.create_connection((host, port))
+                        port = 80
+                    port = net.get_port_upgrade(host, port)[0]
+                    print((host, port))
+
+                    remote_socket = socket.create_connection((host, port))
+
 
                     if self.intercepting:
                         self.intercept(hostname=host,
@@ -128,7 +127,6 @@ class Server(threading.Thread):
         return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__name__)), path))
 
     def relay_data(self, remote_socket, client_socket, client_data):
-        response = b''
         while True:
             try:
                 remote_socket.sendall(client_data)
@@ -137,7 +135,6 @@ class Server(threading.Thread):
                 chunk = remote_socket.recv(self.buffer_size)
                 if not chunk:
                     break
-                response = response + chunk
 
                 # send data back to browser
                 client_socket.send(chunk)
@@ -145,7 +142,6 @@ class Server(threading.Thread):
             except socket.error as error:
                 logger.error(f"ERROR: Unable to relay data {error}")
                 return
-        queue_manager.server_response_queue.put(response)
 
     def intercept(self, method, hostname, remote_socket, port, data):
 
