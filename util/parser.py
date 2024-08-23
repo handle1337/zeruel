@@ -48,9 +48,9 @@ def parse_url(url: str) -> tuple:
     return host, port, protocol
 
 
-def parse_data(data: bytes):
+def parse_data(data: bytes) -> dict:
     if not data:
-        return
+        return {}
     # None by default, if port is found in request we use that in other functions on a case-to-case basis
     port = None
 

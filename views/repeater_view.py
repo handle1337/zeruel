@@ -1,4 +1,7 @@
+import queue
+import threading
 import tkinter as tk
+from controllers import queue_manager
 from util import net
 
 
@@ -57,16 +60,24 @@ class RepeaterTab:
 
     def _send_request(self):
         request = self._get_request()
-        print(request)
-        response = net.send_request(request.encode()) # TODO: use threads here
-        if response:
-            self.update_textbox_widget(self.response_text, response)
-        else:
-            print("No data")
+        encoded_request = request.encode()
+        print(encoded_request)
+        threading.Thread(target=net.send_request, args=(encoded_request,)).start()
+        self.update_response_text_widget()
 
-
-    def update_textbox_widget(self, root, data: str):
+    @staticmethod
+    def update_textbox_widget(root, data: str):
         root.delete('1.0', tk.END)
         root.insert(tk.END, data)
         root.see(tk.END)
+
+    def update_response_text_widget(self):
+        try:
+            response = queue_manager.server_response_queue.get_nowait()
+        except queue.Empty:
+            response = None
+        if response:
+            self.update_textbox_widget(self.response_text, response)
+        else:
+            self.response_text.after(100, self.update_response_text_widget)
 
