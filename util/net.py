@@ -107,8 +107,8 @@ def send_request(request: bytes):
 
     response = session.send(prepped_req)
     response_headers = response.headers
-    response_text = normalize_headers(response_headers) + response.text
 
+    response_text = normalize_headers(response_headers) + "\n" + response.text
 
     queue_manager.server_response_queue.put(response_text)
 

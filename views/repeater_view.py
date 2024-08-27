@@ -1,6 +1,7 @@
 import queue
 import threading
 import tkinter as tk
+from tkinter import scrolledtext
 from controllers import queue_manager
 from util import net
 
@@ -28,7 +29,7 @@ class RepeaterTab:
         lf_control_response.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         # Here we set width and height to 1 so we can let the geometry manager expand the widget to fill extra space
-        self.request_text = tk.Text(lf_control_request,
+        self.request_text = scrolledtext.ScrolledText(lf_control_request,
                                     borderwidth=3,
                                     relief=tk.GROOVE,
                                     bg="black",
@@ -39,7 +40,7 @@ class RepeaterTab:
                                     height=1,
                                     )
 
-        self.response_text = tk.Text(lf_control_response,
+        self.response_text = scrolledtext.ScrolledText(lf_control_response,
                                      borderwidth=3,
                                      relief=tk.GROOVE,
                                      bg="black",
