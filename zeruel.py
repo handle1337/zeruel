@@ -1,5 +1,6 @@
 import sys
 import tkinter as tk
+from tkinter import ttk
 
 from controllers.gui_bootstrap import RootWindowController
 from controllers import server_manager
@@ -8,15 +9,10 @@ HOST = ""
 PORT = 7121
 
 
+
 class Scanner:
     def __init__(self, master):
         self.master = master
-
-
-def app_loop(root, app):
-    while True:
-        root.update_idletasks()
-        root.update()
 
 
 def main():
@@ -35,8 +31,8 @@ def main():
 
     root.protocol('WM_DELETE_WINDOW', kill)
     root.wm_state('zoomed')
-    app = RootWindowController(root, server)
-    app_loop(root, app)
+    RootWindowController(root, server)
+    root.mainloop()
 
 
 if __name__ == "__main__":
