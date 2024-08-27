@@ -1,7 +1,7 @@
 import queue
 import threading
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, ttk
 from controllers import queue_manager
 from util import net
 
@@ -11,19 +11,17 @@ class RepeaterTab:
         print("Initialized Repeater")
         self.root = root
 
-        lf_control_repeater = tk.LabelFrame(self.root, text="Repeater", bg="#a8a8a8", foreground='black')
+        lf_control_repeater = ttk.LabelFrame(self.root, text="Repeater")
         lf_control_repeater.pack(fill=tk.BOTH, expand=True)
 
-        send_request_button = tk.Button(lf_control_repeater,
+        send_request_button = ttk.Button(lf_control_repeater,
                                      text="Send",
-                                     bg="#ededed",
-                                     foreground='black',
                                      width=20,
                                      command=self._send_request)
         send_request_button.pack(side=tk.TOP, anchor=tk.NW)
 
-        lf_control_request = tk.LabelFrame(lf_control_repeater, text="Request", bg="#a8a8a8", foreground='black')
-        lf_control_response = tk.LabelFrame(lf_control_repeater, text="Response", bg="#a8a8a8", foreground='black')
+        lf_control_request = ttk.LabelFrame(lf_control_repeater, text="Request")
+        lf_control_response = ttk.LabelFrame(lf_control_repeater, text="Response")
 
         lf_control_request.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         lf_control_response.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -32,10 +30,7 @@ class RepeaterTab:
         self.request_text = scrolledtext.ScrolledText(lf_control_request,
                                     borderwidth=3,
                                     relief=tk.GROOVE,
-                                    bg="black",
-                                    foreground='#00ff22',
                                     font=("Roboto", 14),
-                                    insertbackground="#00ff22",
                                     width=1,
                                     height=1,
                                     )
@@ -43,10 +38,7 @@ class RepeaterTab:
         self.response_text = scrolledtext.ScrolledText(lf_control_response,
                                      borderwidth=3,
                                      relief=tk.GROOVE,
-                                     bg="black",
-                                     foreground='#00ff22',
                                      font=("Roboto", 14),
-                                     insertbackground="#00ff22",
                                      width=1,
                                      height=1
                                      )
