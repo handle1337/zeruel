@@ -21,12 +21,9 @@ class InterceptTab:
         self.intercepted_request_widget = tk.Text(labelframe_control,
                                                   borderwidth=3,
                                                   relief=tk.GROOVE,
-                                                  bg="black",
-                                                  foreground='#00ff22',
                                                   width=200,
                                                   height=80,
                                                   font=("Roboto", 14),
-                                                  insertbackground="#00ff22"
                                                   )
         self.intercepted_request_widget.bind("<Button-3>", self.rc_menu_popup)
         self.rc_menu = tk.Menu(root, tearoff=False)
