@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 import threading
 
 
@@ -7,12 +8,12 @@ class InterceptTab:
         self.root = root
         self.controller = controller
 
-        labelframe_control = tk.LabelFrame(self.root, text="Intercepted Request", bg="#a8a8a8", foreground='black')
+        labelframe_control = ttk.LabelFrame(self.root, text="Intercepted Request")
         labelframe_control.pack(side=tk.LEFT)
 
-        self.intercept_button = tk.Button(labelframe_control, text="Intercept: off", bg="#ededed", foreground='black',
+        self.intercept_button = ttk.Button(labelframe_control, text="Intercept: off",
                                           width=20, command=self._on_intercept_toggle)
-        self.forward_button = tk.Button(labelframe_control, text="Forward Request", bg="#ededed", foreground='black',
+        self.forward_button = ttk.Button(labelframe_control, text="Forward Request",
                                         width=20, command=self._on_forward_request)
         self.intercept_button.pack(side=tk.TOP, anchor=tk.NW)
         self.forward_button.pack(side=tk.TOP, anchor=tk.NW)
@@ -20,12 +21,9 @@ class InterceptTab:
         self.intercepted_request_widget = tk.Text(labelframe_control,
                                                   borderwidth=3,
                                                   relief=tk.GROOVE,
-                                                  bg="black",
-                                                  foreground='#00ff22',
                                                   width=200,
                                                   height=80,
                                                   font=("Roboto", 14),
-                                                  insertbackground="#00ff22"
                                                   )
         self.intercepted_request_widget.bind("<Button-3>", self.rc_menu_popup)
         self.rc_menu = tk.Menu(root, tearoff=False)

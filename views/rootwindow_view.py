@@ -1,4 +1,3 @@
-import tkinter as tk
 from tkinter import ttk
 
 
@@ -11,9 +10,9 @@ class RootWindow:
         self.root.geometry("%dx%d+0+0" % (window_width, window_height))
         self.tab_control = ttk.Notebook(self.root)
 
-        self.intercept_tab = tk.Frame(self.tab_control, bg="#8c8787")
-        self.repeater_tab = tk.Frame(self.tab_control, bg="#8c8787")
-        self.scanner_tab = tk.Frame(self.tab_control, bg="#8c8787")
+        self.intercept_tab_frame = ttk.Frame(self.tab_control)
+        self.repeater_tab_frame = ttk.Frame(self.tab_control)
+        self.scanner_tab_frame = ttk.Frame(self.tab_control)
 
         self.setup_tab_control()
 
@@ -23,9 +22,9 @@ class RootWindow:
         pass
 
     def setup_tab_control(self):
-        self.tab_control.add(self.intercept_tab, text="Intercept")
-        self.tab_control.add(self.repeater_tab, text="Repeater")
-        self.tab_control.add(self.scanner_tab, text="Scanner")
+        self.tab_control.add(self.intercept_tab_frame, text="Intercept")
+        self.tab_control.add(self.repeater_tab_frame, text="Repeater")
+        self.tab_control.add(self.scanner_tab_frame, text="Scanner")
 
 
     def __del__(self):
