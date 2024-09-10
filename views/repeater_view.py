@@ -1,9 +1,10 @@
 import queue
 import threading
+import time
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 from controllers import queue_manager
-from util import net
+from util import net, enums
 
 
 class RepeaterTab:
@@ -52,9 +53,9 @@ class RepeaterTab:
         return request
 
     def _send_request(self):
+        self.update_textbox_widget(self.response_text, '')
         request = self._get_request()
         encoded_request = request.encode()
-        print(encoded_request)
         threading.Thread(target=net.send_request, args=(encoded_request,)).start()
         self.update_response_text_widget()
 
@@ -69,8 +70,11 @@ class RepeaterTab:
             response = queue_manager.server_response_queue.get_nowait()
         except queue.Empty:
             response = None
-        if response:
+        if response == enums.EOR:
+            return
+        elif response:
             self.update_textbox_widget(self.response_text, response)
+            self.response_text.after(1000,self.update_response_text_widget)
         else:
-            self.response_text.after(100, self.update_response_text_widget)
+            self.response_text.after(1000,self.update_response_text_widget)
 

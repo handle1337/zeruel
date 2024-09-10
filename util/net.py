@@ -1,11 +1,13 @@
 import enum
+import errno
 import socket
 import ssl
+import time
 from textwrap import indent
 
 from requests import Request, Session
 from controllers import queue_manager
-from util import parser
+from util import parser, enums
 from util.enums import Protocols
 
 
@@ -74,41 +76,34 @@ def probe_tls_support(hostname, port=443) -> enum.Enum:
         return Protocols.HTTP
 
 
+
 def send_request(request: bytes):
+    # TODO: check content encoding in req headers, decode/unzip content
+    #https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding?utm_source=mozilla&utm_medium=devtools-netmonitor&utm_campaign=default
+
+    response = b''
     parsed_request = parser.parse_data(request)
-    print(f"sending {parsed_request}")
+    print(parsed_request)
+    remote_socket = get_remote_socket_from_request(parsed_request)
+    remote_socket.settimeout(2)
+
+    remote_socket.sendall(parsed_request["data"])
 
 
+    while True:
+        try:
+            chunk = remote_socket.recv(4096)
+        except socket.timeout:
+            break
+        except socket.error as e:
+            print(f"Socker error: {e}")
+            break
+        else:
+            if chunk:
+                response = response + chunk
+            else:
+                break
 
-    session = Session()
-
-    method = parsed_request["method"]
-    host = parsed_request["host"]
-    data = parsed_request["data"]
-    headers = parsed_request["headers"]
-    protocol = parsed_request["protocol"]
-
-
-    if protocol == Protocols.HTTPS:
-        host = "https://" + host
-    else:
-        host = "http://" + host
-
-    req = Request(method, host, headers=headers)
-    prepped_req = req.prepare()
-
-    #prepped_req.body = data
-    # TODO: when sending POST requests or the like we need
-    # to send the client data, we can make the parser do this for us
-    # by adding a new returned key:pair value
-
-    def normalize_headers(header_dict):
-        return '\n'.join(f'{key}: {value}' for key, value in header_dict.items())
-
-    response = session.send(prepped_req)
-    response_headers = response.headers
-
-    response_text = normalize_headers(response_headers) + "\n" + response.text
-
-    queue_manager.server_response_queue.put(response_text)
+    queue_manager.server_response_queue.put(response.decode(errors='ignore'))
+    queue_manager.server_response_queue.put(enums.EOR) #end of req
 

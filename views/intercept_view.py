@@ -58,6 +58,7 @@ class InterceptTab:
             self.root.update()
 
     def _on_intercept_toggle(self):
+        # TODO: clear queue when turned off
         if not self.controller.intercepting:
             self.intercept_button['text'] = 'Intercept: on'
             self.controller.toggle_intercept(True)

@@ -173,7 +173,7 @@ class Server(threading.Thread):
             ssl_client_data = ssl_client_socket.recv(4096)
 
             # logger.debug(f"GOT: {ssl_client_data}")
-            print(f"GOT: {ssl_client_data}")
+            #print(f"GOT: {ssl_client_data.decode().split("\r\n")}")
             queue_manager.client_request_queue.put(ssl_client_data)
 
             queue_manager.info_queue.put(ssl_remote_socket)
