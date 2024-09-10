@@ -1,7 +1,10 @@
 from urllib.parse import urlparse
-from models.proxy import Protocols
+from util.enums import Protocols
 from util.logging_conf import logger
 
+def parse_request_body(body):
+    body = ''
+    return body
 
 def parse_request_headers(request):
     headers = []
@@ -48,17 +51,19 @@ def parse_url(url: str) -> tuple:
     return host, port, protocol
 
 
-def parse_data(data):
+def parse_data(data: bytes) -> dict:
     if not data:
-        return
+        return {}
     # None by default, if port is found in request we use that in other functions on a case-to-case basis
     port = None
 
     data_lines = data.decode('utf-8', errors='ignore').split('\r\n')
-    # print(f"data lines: {data_lines}")
+    print(f"data lines: {data_lines}")
     method = data_lines[0].split(' ')[0]
     resource = data_lines[0].split(' ')[1]
     headers = parse_request_headers(data)
+    body = data_lines[-1]
+
 
     """
     Check if request for a resource or host ex:
@@ -81,6 +86,12 @@ def parse_data(data):
 
     host = parsed_host[0]
 
-    result = {"method": method, "host": host, "port": port, "data": data, "headers": headers, "protocol": protocol}
-    # print(f"result {method} {host} {port} {headers}")
+    result = {"method": method,
+              "host": host,
+              "port": port,
+              "data": data,
+              "headers": headers,
+              "protocol": protocol,
+              "body": body}
+    print(f"result {method} {host} {port} {headers}")
     return result
