@@ -37,6 +37,7 @@ A small MITM proxy tool with a GUI
 - Match and replace in requests
 
 ## Demo
-
+![screenshot1](./media/screenshot1.png)
+![screenshot2](./media/screenshot2.png)
 ![demo](./media/demo.gif)
 
