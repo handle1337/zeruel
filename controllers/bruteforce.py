@@ -12,7 +12,7 @@ class BruteforceController:
         intercept_controller: InterceptController instance
         """
 
-        # We reuse the same server thread used by intercept/repeater
+        # Reuse existing server thread (shared with intercept/repeater)
         self.server = intercept_controller.server
 
         # view
@@ -38,12 +38,11 @@ class BruteforceController:
 
         try:
             self.model.load_wordlist(wordlist_path)
+            self.model.set_target(base_url)
+            self.model.set_recursive(recursive)
         except Exception as e:
-            self.view.set_status(f"Wordlist error: {e}")
+            self.view.set_status(str(e))
             return
-
-        self.model.set_target(base_url)
-        self.model.set_recursive(recursive)
 
         self._attempted = 0
         self._running = True
@@ -51,7 +50,6 @@ class BruteforceController:
         self.view.set_status("Running")
         self.view.set_progress(0)
 
-        # Start background thread
         self._thread = threading.Thread(
             target=self._run,
             daemon=True
@@ -61,6 +59,7 @@ class BruteforceController:
     def stop(self):
         if not self._running:
             return
+
         self._running = False
         self.view.set_status("Stopped")
 
@@ -71,18 +70,21 @@ class BruteforceController:
         Model generates requests, controller sends them.
         """
         try:
-            for request_bytes in self.model.generate_requests():
+            for host, port, _path, request in self.model.generate_requests():
                 if not self._running:
                     break
 
-                # We send directly via server thread
-                self.server.send_data(request_bytes)
-                self._attempted += 1
+                # Dedicated bruteforce send path
+                self.server.send_bruteforce(
+                    hostname=host,
+                    port=port,
+                    data=request
+                )
 
-                # Update UI
+                self._attempted += 1
                 self.view.set_progress(self._attempted)
 
-                # Throttling (prevents UI starvation)
+                # Prevent UI starvation
                 time.sleep(0.01)
 
         finally:
