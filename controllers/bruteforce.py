@@ -27,6 +27,19 @@ class BruteforceController:
         self._thread = None
         self._attempted = 0
 
+        # results
+        self._results = {
+            "2xx": 0,
+            "3xx": 0,
+            "401": 0,
+            "403": 0,
+            "404": 0,
+            "other": 0,
+        }
+        self._hits = 0
+        self._discovered_paths = []
+
+
     # UI entry points
     def start(self, wordlist_path: str, base_url: str, recursive: bool):
         if self._running:
@@ -59,7 +72,6 @@ class BruteforceController:
     def stop(self):
         if not self._running:
             return
-
         self._running = False
         self.view.set_status("Stopped")
 
@@ -69,24 +81,68 @@ class BruteforceController:
         Background bruteforce loop.
         Model generates requests, controller sends them.
         """
+        completed = True
         try:
-            for host, port, _path, request in self.model.generate_requests():
+            for host, port, path, request in self.model.generate_requests():
                 if not self._running:
+                    completed = False
                     break
 
-                # Dedicated bruteforce send path
-                self.server.send_bruteforce(
+                response = self.server.send_bruteforce(
                     hostname=host,
                     port=port,
                     data=request
                 )
-
+                status = self.model._get_status(response)
                 self._attempted += 1
-                self.view.set_progress(self._attempted)
 
-                # Prevent UI starvation
+                # classify response
+                if status is None:
+                    self._results["other"] += 1
+                elif 200 <= status < 300:
+                    self._results["2xx"] += 1
+                elif 300 <= status < 400:
+                    self._results["3xx"] += 1
+                elif status == 401:
+                    self._results["401"] += 1
+                elif status == 403:
+                    self._results["403"] += 1
+                elif status == 404:
+                    self._results["404"] += 1
+                else:
+                    self._results["other"] += 1
+
+                # hit detection
+                if status and status != 404:
+                    self._hits += 1
+                    self._discovered_paths.append((path, status))
+
+                # update UI
+                self.view.set_progress(self._attempted)
+                self.view.set_status(self._build_status_text())
+
                 time.sleep(0.01)
 
         finally:
             self._running = False
-            self.view.set_status("Idle")
+            prefix = "Completed" if completed else "Stopped"
+            self.view.set_status(
+                f"{prefix}\n"
+                f"{self._build_status_text()}"
+            )
+
+    # helper function to make status text
+    def _build_status_text(self) -> str:
+        return (
+            f"Hits: {self._hits}\n"
+            f"404: {self._results['404']}\n"
+            f"Attempts: {self._attempted}\n\n"
+            f"{self._format_discoveries()}"
+        )
+
+    # helper function to format discoveries
+    def _format_discoveries(self) -> str:
+        return "\n".join(
+            f"{path} {status}"
+            for path, status in self._discovered_paths[-5:]
+        )

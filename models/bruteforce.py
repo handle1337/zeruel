@@ -89,3 +89,11 @@ class BruteforceModel:
             f"Connection: close\r\n"
             f"\r\n"
         ).encode()
+
+    def _get_status(self, response: bytes) -> int | None:
+        try:
+            line = response.split(b"\r\n", 1)[0]
+            return int(line.split()[1])
+        except Exception:
+            return None
+
