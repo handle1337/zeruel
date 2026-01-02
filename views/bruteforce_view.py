@@ -7,58 +7,96 @@ class BruteforceTab:
         self.root = root
         self.controller = None
 
+        # Root frame
         lf = ttk.LabelFrame(self.root, text="Bruteforce")
-        lf.pack(fill=tk.BOTH, expand=True)
+        lf.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
         # Controls
-        controls = ttk.Frame(lf)
-        controls.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        controls = ttk.LabelFrame(lf, text="Configuration")
+        controls.pack(fill=tk.X, padx=5, pady=5)
 
-        # Wordlist picker
-        ttk.Label(controls, text="Wordlist:").grid(row=0, column=0, sticky=tk.W)
-        self.wordlist_entry = ttk.Entry(controls, width=50)
-        self.wordlist_entry.grid(row=0, column=1, padx=5)
+        # Wordlist
+        ttk.Label(controls, text="Wordlist").grid(
+            row=0, column=0, sticky=tk.W, padx=5, pady=4
+        )
+        self.wordlist_entry = ttk.Entry(controls, width=48)
+        self.wordlist_entry.grid(
+            row=0, column=1, padx=5, pady=4, sticky=tk.W
+        )
 
         self.wordlist_btn = ttk.Button(
             controls, text="Browse", command=self._on_pick_wordlist
         )
-        self.wordlist_btn.grid(row=0, column=2)
+        self.wordlist_btn.grid(row=0, column=2, padx=5)
 
-        # Base URL/host
-        ttk.Label(controls, text="Base URL:").grid(row=1, column=0, sticky=tk.W)
-        self.base_url_entry = ttk.Entry(controls, width=50)
-        self.base_url_entry.grid(row=1, column=1, padx=5, pady=5)
+        # Base URL
+        ttk.Label(controls, text="Base URL").grid(
+            row=1, column=0, sticky=tk.W, padx=5, pady=4
+        )
+        self.base_url_entry = ttk.Entry(controls, width=48)
+        self.base_url_entry.grid(
+            row=1, column=1, padx=5, pady=4, sticky=tk.W
+        )
 
-        # Recursive checkbox
+        # Recursive
         self.recursive_var = tk.BooleanVar(value=False)
         self.recursive_cb = ttk.Checkbutton(
-            controls, text="Recursive", variable=self.recursive_var
+            controls, text="Recursive brute-force", variable=self.recursive_var
         )
-        self.recursive_cb.grid(row=2, column=1, sticky=tk.W)
+        self.recursive_cb.grid(
+            row=2, column=1, sticky=tk.W, padx=5, pady=4
+        )
 
-        # Start/Stop buttons
-        buttons = ttk.Frame(lf)
-        buttons.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        controls.columnconfigure(1, weight=1)
 
-        self.start_btn = ttk.Button(buttons, text="Start", command=self._on_start)
-        self.stop_btn = ttk.Button(buttons, text="Stop", command=self._on_stop)
+        # Action buttons
+        actions = ttk.Frame(lf)
+        actions.pack(fill=tk.X, padx=5, pady=(0, 5))
 
-        self.start_btn.pack(side=tk.LEFT, padx=5)
+        self.start_btn = ttk.Button(actions, text="Start", command=self._on_start)
+        self.stop_btn = ttk.Button(actions, text="Stop", command=self._on_stop)
+
+        self.start_btn.pack(side=tk.LEFT, padx=(0, 5))
         self.stop_btn.pack(side=tk.LEFT)
 
-        # Status / Progress
+        # Status
         status = ttk.LabelFrame(lf, text="Status")
-        status.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        status.pack(fill=tk.X, padx=5, pady=5)
 
-        self.status_label = ttk.Label(status, text="Idle")
-        self.status_label.pack(anchor=tk.W, padx=5, pady=2)
+        self.status_label = ttk.Label(
+            status,
+            text="Idle",
+            justify=tk.LEFT,
+        )
+        self.status_label.pack(anchor=tk.W, padx=5, pady=(4, 2))
 
-        self.progress_label = ttk.Label(status, text="Attempts: 0")
-        self.progress_label.pack(anchor=tk.W, padx=5)
+        self.progress_label = ttk.Label(
+            status,
+            text="Attempts: 0",
+        )
+        self.progress_label.pack(anchor=tk.W, padx=5, pady=(0, 4))
+
+        # Discovered paths (placeholder UI)
+        results = ttk.LabelFrame(lf, text="Discovered Paths")
+        results.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        self.results_box = tk.Text(
+            results,
+            height=8,
+            wrap="none",
+            state=tk.DISABLED,
+        )
+        self.results_box.pack(
+            fill=tk.BOTH,
+            expand=True,
+            padx=5,
+            pady=5,
+        )
 
     # Controller binding
     def set_controller(self, controller):
         self.controller = controller
+
 
     # UI event handlers
     def _on_pick_wordlist(self):
@@ -81,7 +119,8 @@ class BruteforceTab:
         if self.controller:
             self.controller.stop()
 
-    # UI update helpers (called by controller)
+
+    # UI update helpers
     def set_status(self, text: str):
         self.status_label.config(text=text)
         self.root.update_idletasks()
@@ -89,4 +128,15 @@ class BruteforceTab:
     def set_progress(self, attempts: int):
         self.progress_label.config(text=f"Attempts: {attempts}")
         self.root.update_idletasks()
+
+    def append_result(self, text: str):
+        self.results_box.config(state=tk.NORMAL)
+        self.results_box.insert(tk.END, text + "\n")
+        self.results_box.see(tk.END)
+        self.results_box.config(state=tk.DISABLED)
+
+    def clear_results(self):
+        self.results_box.config(state=tk.NORMAL)
+        self.results_box.delete("1.0", tk.END)
+        self.results_box.config(state=tk.DISABLED)
 
