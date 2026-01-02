@@ -30,7 +30,11 @@ def main():
         sys.exit()
 
     root.protocol('WM_DELETE_WINDOW', kill)
-    root.wm_state('zoomed')
+    if sys.platform.startswith("win"):
+        root.state("zoomed")
+    else:
+        root.attributes("-zoomed", True)
+
     RootWindowController(root, server)
     root.mainloop()
 
