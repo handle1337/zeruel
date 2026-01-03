@@ -1,5 +1,6 @@
 import threading
 import time
+from collections import deque
 
 from views.bruteforce_view import BruteforceTab
 from models.bruteforce import BruteforceModel
@@ -26,6 +27,13 @@ class BruteforceController:
         self._running = False
         self._thread = None
         self._attempted = 0
+
+        # Queue for directories to recurse into
+        self._recursion_queue = deque()
+
+        # Track discoveries by phase
+        self._phase1_discoveries = []
+        self._phase2_discoveries = []
 
         self._reset_results()
 
@@ -67,7 +75,7 @@ class BruteforceController:
         self._ui_status("Stopping...")
 
     def clear(self):
-        # Do not allow clearing while runnign
+        # Do not allow clearing while running
         if self._running:
             self._ui_status("Stop the scan before clearing")
             return
@@ -82,36 +90,104 @@ class BruteforceController:
     def _run(self):
         completed = True
         try:
+            # Phase 1: Process initial wordlist
+            self._ui_append_result("=== Phase 1: Initial Scan ===\n")
             for host, port, path, request in self.model.generate_requests():
-                if not self._running:
+                if not self._run_request(host, port, path, request, phase=1):
                     completed = False
                     break
 
-                response = self.server.send_bruteforce(
-                    hostname=host,
-                    port=port,
-                    data=request,
-                )
+            # Phase 2: Process discovered directories (recursive mode)
+            if self.model.recursive and self._recursion_queue:
+                self._ui_append_result(f"\n=== Phase 2: Recursive Scan ({len(self._recursion_queue)} directories queued) ===\n")
 
-                status = self.model._get_status(response)
-                self._attempted += 1
-                self._classify_status(status)
+                while self._recursion_queue and self._running:
+                    directory_path = self._recursion_queue.popleft()
+                    self._ui_append_result(f"→ Recursing into: {directory_path}")
 
-                if status is not None and status != 404:
-                    self._hits += 1
-                    self._discovered_paths.append((path, status))
-                    self._ui_append_result(f"{path} [{status}]")
+                    found_in_dir = 0
+                    # Generate requests for this directory
+                    for host, port, path, request in self.model.recurse_into_directory(directory_path):
+                        if not self._run_request(host, port, path, request, phase=2):
+                            completed = False
+                            break
 
-                self._ui_progress(self._attempted)
+                        # Track if we found anything in this directory
+                        if path in [p for p, _ in self._phase2_discoveries]:
+                            found_in_dir += 1
 
-                # tiny yield so UI stays responsive
-                time.sleep(0.005)
+                    if found_in_dir == 0:
+                        self._ui_append_result(f"  (no paths found in {directory_path})")
+
+                    self._ui_append_result("")  # Blank line for readability
+
+                    if not self._running:
+                        completed = False
+                        break
+            elif self.model.recursive and not self._recursion_queue:
+                self._ui_append_result("\n=== Phase 2: No directories found to recurse ===\n")
+
+            # Show final summary
+            self._show_summary()
 
         finally:
             self._running = False
             final_state = "Completed" if completed else "Stopped"
             summary = self._build_summary()
             self._ui_status(f"{final_state}\n{summary}")
+
+    def _run_request(self, host: str, port: int, path: str, request: bytes, phase: int = 1) -> bool:
+        """
+        Execute a single request and process the response.
+
+        Args:
+            phase: 1 for initial scan, 2 for recursive scan
+
+        Returns:
+            True if should continue, False if stopped
+        """
+        if not self._running:
+            return False
+
+        response = self.server.send_bruteforce(
+            hostname=host,
+            port=port,
+            data=request,
+        )
+
+        status = self.model._get_status(response)
+        self._attempted += 1
+        self._classify_status(status)
+
+        # Track hits (anything except 404)
+        if status is not None and status != 404:
+            self._hits += 1
+            self._discovered_paths.append((path, status))
+
+            # Track by phase
+            if phase == 1:
+                self._phase1_discoveries.append((path, status))
+            else:
+                self._phase2_discoveries.append((path, status))
+
+            # Better formatting based on depth
+            depth = path.count('/') - 1
+            indent = "  " * depth
+            self._ui_append_result(f"{indent}{path} [{status}]")
+
+            # Check if we should recurse into this path
+            if self.model.recursive and self.model.should_recurse(path, status):
+                # Only queue if not already queued or visited for recursion
+                if path not in self._recursion_queue:
+                    self._recursion_queue.append(path)
+                    self._ui_append_result(f"{indent}  └─ Queued for recursion")
+
+        self._ui_progress(self._attempted)
+
+        # tiny yield so UI stays responsive
+        time.sleep(0.005)
+
+        return True
 
 
     # Internal helpers
@@ -126,11 +202,16 @@ class BruteforceController:
         }
         self._hits = 0
         self._discovered_paths = []
+        self._phase1_discoveries = []
+        self._phase2_discoveries = []
 
     def _reset_state(self):
         self._attempted = 0
         self._hits = 0
         self._discovered_paths.clear()
+        self._phase1_discoveries.clear()
+        self._phase2_discoveries.clear()
+        self._recursion_queue.clear()
 
         for k in self._results:
             self._results[k] = 0
@@ -170,4 +251,39 @@ class BruteforceController:
 
     def _ui_clear_results(self):
         self.view.root.after(0, self.view.clear_results)
+
+    def _show_summary(self):
+        """Display final summary of all discoveries"""
+        self._ui_append_result("\n" + "="*50)
+        self._ui_append_result("=== SCAN SUMMARY ===")
+        self._ui_append_result("="*50 + "\n")
+
+        # Phase 1 discoveries
+        if self._phase1_discoveries:
+            self._ui_append_result(f"Phase 1 Discoveries ({len(self._phase1_discoveries)}):")
+            for path, status in self._phase1_discoveries:
+                self._ui_append_result(f"  {path} [{status}]")
+            self._ui_append_result("")
+        else:
+            self._ui_append_result("Phase 1 Discoveries: None\n")
+
+        # Phase 2 discoveries
+        if self._phase2_discoveries:
+            self._ui_append_result(f"Phase 2 Discoveries ({len(self._phase2_discoveries)}):")
+            for path, status in self._phase2_discoveries:
+                self._ui_append_result(f"  {path} [{status}]")
+            self._ui_append_result("")
+        else:
+            self._ui_append_result("Phase 2 Discoveries: None\n")
+
+        # Overall stats
+        self._ui_append_result("Overall Statistics:")
+        self._ui_append_result(f"  Total Attempts: {self._attempted}")
+        self._ui_append_result(f"  Total Hits: {self._hits}")
+        self._ui_append_result(f"  404s: {self._results['404']}")
+        self._ui_append_result(f"  2xx: {self._results['2xx']}")
+        self._ui_append_result(f"  3xx: {self._results['3xx']}")
+        self._ui_append_result(f"  403: {self._results['403']}")
+        self._ui_append_result(f"  401: {self._results['401']}")
+        self._ui_append_result(f"  Other: {self._results['other']}")
 
