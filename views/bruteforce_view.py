@@ -55,9 +55,11 @@ class BruteforceTab:
 
         self.start_btn = ttk.Button(actions, text="Start", command=self._on_start)
         self.stop_btn = ttk.Button(actions, text="Stop", command=self._on_stop)
+        self.clear_btn = ttk.Button(actions, text="Clear", command=self._on_clear)
 
         self.start_btn.pack(side=tk.LEFT, padx=(0, 5))
-        self.stop_btn.pack(side=tk.LEFT)
+        self.stop_btn.pack(side=tk.LEFT, padx=(0, 5))
+        self.clear_btn.pack(side=tk.LEFT)
 
         # Status
         status = ttk.LabelFrame(lf, text="Status")
@@ -118,6 +120,10 @@ class BruteforceTab:
     def _on_stop(self):
         if self.controller:
             self.controller.stop()
+
+    def _on_clear(self):
+        if self.controller:
+            self.controller.clear()
 
 
     # UI update helpers

@@ -66,6 +66,17 @@ class BruteforceController:
         self._running = False
         self._ui_status("Stopping...")
 
+    def clear(self):
+        # Do not allow clearing while runnign
+        if self._running:
+            self._ui_status("Stop the scan before clearing")
+            return
+
+        self._reset_state()
+        self._ui_clear_results()
+        self._ui_progress(0)
+        self._ui_status("Idle")
+
 
     # Background worker
     def _run(self):
