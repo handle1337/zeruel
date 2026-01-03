@@ -99,7 +99,7 @@ class BruteforceController:
 
             # Phase 2: Process discovered directories (recursive mode)
             if self.model.recursive and self._recursion_queue:
-                self._ui_append_result(f"\n=== Phase 2: Recursive Scan ({len(self._recursion_queue)} directories queued) ===\n")
+                self._ui_append_result(f"\n\n=== Phase 2: Recursive Scan ({len(self._recursion_queue)} directories queued) ===\n")
 
                 while self._recursion_queue and self._running:
                     directory_path = self._recursion_queue.popleft()
@@ -254,36 +254,48 @@ class BruteforceController:
 
     def _show_summary(self):
         """Display final summary of all discoveries"""
-        self._ui_append_result("\n" + "="*50)
-        self._ui_append_result("=== SCAN SUMMARY ===")
-        self._ui_append_result("="*50 + "\n")
+        # Add some spacing before summary
+        self._ui_append_result("\n")
+        self._ui_append_result("╔" + "═"*58 + "╗")
+        self._ui_append_result("║" + " "*18 + "SCAN SUMMARY" + " "*28 + "║")
+        self._ui_append_result("╚" + "═"*58 + "╝")
+        self._ui_append_result("")
 
         # Phase 1 discoveries
+        self._ui_append_result("┌─ Phase 1: Initial Scan")
         if self._phase1_discoveries:
-            self._ui_append_result(f"Phase 1 Discoveries ({len(self._phase1_discoveries)}):")
+            self._ui_append_result(f"│  Found {len(self._phase1_discoveries)} path(s):")
             for path, status in self._phase1_discoveries:
-                self._ui_append_result(f"  {path} [{status}]")
-            self._ui_append_result("")
+                self._ui_append_result(f"│    • {path}    {status}")
         else:
-            self._ui_append_result("Phase 1 Discoveries: None\n")
+            self._ui_append_result("│  No paths discovered")
+        self._ui_append_result("└" + "─"*40)
+        self._ui_append_result("")
 
         # Phase 2 discoveries
-        if self._phase2_discoveries:
-            self._ui_append_result(f"Phase 2 Discoveries ({len(self._phase2_discoveries)}):")
-            for path, status in self._phase2_discoveries:
-                self._ui_append_result(f"  {path} [{status}]")
+        if self.model.recursive:
+            self._ui_append_result("┌─ Phase 2: Recursive Scan")
+            if self._phase2_discoveries:
+                self._ui_append_result(f"│  Found {len(self._phase2_discoveries)} path(s):")
+                for path, status in self._phase2_discoveries:
+                    self._ui_append_result(f"│    • {path}    {status}")
+            else:
+                self._ui_append_result("│  No additional paths discovered")
+            self._ui_append_result("└" + "─"*40)
             self._ui_append_result("")
-        else:
-            self._ui_append_result("Phase 2 Discoveries: None\n")
 
         # Overall stats
-        self._ui_append_result("Overall Statistics:")
-        self._ui_append_result(f"  Total Attempts: {self._attempted}")
-        self._ui_append_result(f"  Total Hits: {self._hits}")
-        self._ui_append_result(f"  404s: {self._results['404']}")
-        self._ui_append_result(f"  2xx: {self._results['2xx']}")
-        self._ui_append_result(f"  3xx: {self._results['3xx']}")
-        self._ui_append_result(f"  403: {self._results['403']}")
-        self._ui_append_result(f"  401: {self._results['401']}")
-        self._ui_append_result(f"  Other: {self._results['other']}")
+        self._ui_append_result("┌─ Statistics")
+        self._ui_append_result(f"│  Total Requests:     {self._attempted}")
+        self._ui_append_result(f"│  Total Discoveries:  {self._hits}")
+        self._ui_append_result("│")
+        self._ui_append_result("│  Status Breakdown:")
+        self._ui_append_result(f"│    2xx (Success):    {self._results['2xx']}")
+        self._ui_append_result(f"│    3xx (Redirect):   {self._results['3xx']}")
+        self._ui_append_result(f"│    401 (Unauthorized): {self._results['401']}")
+        self._ui_append_result(f"│    403 (Forbidden):  {self._results['403']}")
+        self._ui_append_result(f"│    404 (Not Found):  {self._results['404']}")
+        if self._results['other'] > 0:
+            self._ui_append_result(f"│    Other:            {self._results['other']}")
+        self._ui_append_result("└" + "─"*40)
 
