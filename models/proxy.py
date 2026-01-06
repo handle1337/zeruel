@@ -256,3 +256,40 @@ class Server(threading.Thread):
 
         finally:
             pass
+
+    def send_bruteforce(self, hostname: str, port: int, data: bytes) -> bytes:
+        """
+        Dedicated outbound path for bruteforce/scanner traffic.
+        Bypasses proxy state entirely.
+        Returns raw HTTP response bytes.
+        """
+        remote_socket = None
+        response = b""
+        try:
+            logger.debug(f"[Bruteforce] -> {hostname}:{port}")
+
+            remote_socket = socket.create_connection(
+                (hostname, port),
+                timeout=5
+            )
+            remote_socket.sendall(data)
+
+            while True:
+                chunk = remote_socket.recv(self.buffer_size)
+                if not chunk:
+                    break
+                response += chunk
+
+        except Exception as e:
+            logger.debug(
+                f"[Bruteforce] send failed {hostname}:{port} | {e}"
+            )
+
+        finally:
+            if remote_socket:
+                try:
+                    remote_socket.close()
+                except Exception:
+                    pass
+
+        return response

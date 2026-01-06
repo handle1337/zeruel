@@ -13,6 +13,7 @@ class RootWindow:
         self.intercept_tab_frame = ttk.Frame(self.tab_control)
         self.repeater_tab_frame = ttk.Frame(self.tab_control)
         self.scanner_tab_frame = ttk.Frame(self.tab_control)
+        self.bruteforce_tab_frame = ttk.Frame(self.tab_control)
 
         self.setup_tab_control()
 
@@ -25,7 +26,7 @@ class RootWindow:
         self.tab_control.add(self.intercept_tab_frame, text="Intercept")
         self.tab_control.add(self.repeater_tab_frame, text="Repeater")
         self.tab_control.add(self.scanner_tab_frame, text="Scanner")
-
+        self.tab_control.add(self.bruteforce_tab_frame, text="Bruteforce")
 
     def __del__(self):
         print("RootWindow Destroyed")
