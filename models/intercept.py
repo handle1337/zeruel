@@ -43,7 +43,7 @@ class InterceptModel:
                 except queue.Empty:
                     print("No remote socket")
             else:
-                print("no request intercepted")
+                print("No request intercepted")
 
     def start_intercepting(self):
         server_manager.stop_all()

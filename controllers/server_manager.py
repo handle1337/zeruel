@@ -1,5 +1,7 @@
-from util.logging_conf import logger
+import logging
 from models.proxy import Server
+
+logger = logging.getLogger(__name__)
 
 server_threads = []
 
@@ -10,14 +12,15 @@ def new_server(host='', port=7121):
     return server
 
 
-def start(server, intercept=0):
+def start(server_thread, intercept=0):
+    logger.info(f"Starting server thread {server_thread}")
     if intercept:
-        server.intercepting = True
-    server.start()
+        server_thread.intercepting = True
+    server_thread.start()
 
 
 def stop(server_thread):
-    logger.info(f"stopping server thread {server_thread}")
+    logger.info(f"Stopping server thread {server_thread}")
     if server_thread.running:
         server_thread.stop()
         server_thread.join()
@@ -27,6 +30,7 @@ def stop(server_thread):
 def stop_all():
     for server in server_threads:
         stop(server)
+    logger.warning(f"Stopped all server threads")
 
 
 def get_threads():

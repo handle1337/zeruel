@@ -96,7 +96,7 @@ def send_request(request: bytes):
         except socket.timeout:
             break
         except socket.error as e:
-            print(f"Socker error: {e}")
+            print(f"Socket error: {e}")
             break
         else:
             if chunk:

@@ -1,9 +1,14 @@
 import sys
 import tkinter as tk
-from tkinter import ttk
+import logging
 
 from controllers.gui_bootstrap import RootWindowController
 from controllers import server_manager
+
+
+logger = logging.getLogger(__name__)
+
+
 
 HOST = ""
 PORT = 7121
@@ -16,6 +21,8 @@ class Scanner:
 
 
 def main():
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', filename='zeruel.log', filemode='w', level=logging.DEBUG)
+    logger.info('Started Zeruel Proxy')
     print("[[Zeruel Proxy]]")
 
     server = server_manager.new_server()
@@ -37,6 +44,7 @@ def main():
 
     RootWindowController(root, server)
     root.mainloop()
+    logger.info('Finished')
 
 
 if __name__ == "__main__":

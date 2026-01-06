@@ -1,6 +1,5 @@
 from urllib.parse import urlparse
 from util.enums import Protocols
-from util.logging_conf import logger
 
 def parse_request_body(body):
     body = ''

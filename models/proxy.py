@@ -4,12 +4,14 @@ import os
 import sys
 import itertools
 import threading
+import logging
 
 from util import parser, certs
-from util.logging_conf import logger
 from controllers import queue_manager
 from util import net
 from util.enums import Protocols
+
+logger= logging.getLogger(__name__)
 
 
 class Server(threading.Thread):
@@ -243,7 +245,7 @@ class Server(threading.Thread):
                                                                          self.cakey)
                         client_ssl_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
 
-                        print(f"{e}: wrapping socket {client_ssl_socket} with {cert_path} {key_path}")
+                        print(f"{e}: Wrapping socket {client_ssl_socket} with {cert_path} {key_path}")
 
                     remote_ssl_socket = remote_socket  # we infer that remote socket is wrapped in Server.intercept()
 
