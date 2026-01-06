@@ -27,13 +27,13 @@ A small MITM proxy tool with a GUI
 - HTTP/HTTPS request intercept
 - HTTP/HTTPS request modification on-the-fly
 - Multithreaded sockets
-- Dynamic SSL certificate generation 
+- Dynamic SSL certificate generation
+- Directory and file discovery
 
 ### On the works
 - Request logging and replay
 
 ### Might implement
-- Directory and file discovery
 - Match and replace in requests
 
 ## Demo
