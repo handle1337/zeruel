@@ -35,7 +35,7 @@ def get_remote_socket_from_request(parsed_data):
         port = 80
     try:
         port, protocol = get_port_upgrade(host, port)
-        print(f"get remote socket {(host, port)}")
+        #print(f"et remote socket {(host, port)}")
         remote_socket = socket.create_connection((host, port))
         if protocol == Protocols.HTTPS:
             return wrap_remote_socket(remote_socket, host)

@@ -57,7 +57,7 @@ def parse_data(data: bytes) -> dict:
     port = None
 
     data_lines = data.decode('utf-8', errors='ignore').split('\r\n')
-    print(f"data lines: {data_lines}")
+    #print(f"Data lines: {data_lines}")
     method = data_lines[0].split(' ')[0]
     resource = data_lines[0].split(' ')[1]
     headers = parse_request_headers(data)
@@ -92,5 +92,5 @@ def parse_data(data: bytes) -> dict:
               "headers": headers,
               "protocol": protocol,
               "body": body}
-    print(f"result {method} {host} {port} {headers}")
+    #print(f"result {method} {host} {port} {headers}")
     return result

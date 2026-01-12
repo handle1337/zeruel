@@ -1,8 +1,11 @@
 import threading
 import queue
+import logging
 from util import parser, net
 from controllers import server_manager
 
+
+logger = logging.getLogger(__name__)
 
 class InterceptModel:
     def __init__(self, controller):
@@ -43,7 +46,7 @@ class InterceptModel:
                 except queue.Empty:
                     print("No remote socket")
             else:
-                print("No request intercepted")
+                logger.info("No request intercepted")
 
     def start_intercepting(self):
         server_manager.stop_all()
@@ -65,7 +68,7 @@ class InterceptModel:
     def get_remote_socket_from_queue(self):
         try:
             remote_socket = self.info_queue.get_nowait()
-            print(f"data in info queue {remote_socket}")
+            print(f"Data in info queue {remote_socket}")
             return remote_socket
         except queue.Empty:
             return None

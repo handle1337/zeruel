@@ -11,7 +11,7 @@ from controllers import queue_manager
 from util import net
 from util.enums import Protocols
 
-logger= logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Server(threading.Thread):
@@ -118,10 +118,10 @@ class Server(threading.Thread):
         self.running = False
         if self.proxy_socket:
             self.proxy_socket.close()
-            print("killed server socket")
+            print("Killed server socket")
         if self.client_socket:
             self.client_socket.close()
-            print("killed client socket")
+            print("Killed client socket")
 
     # TODO: move this to future file manager module
     @staticmethod
@@ -150,7 +150,7 @@ class Server(threading.Thread):
         protocol = net.probe_tls_support(hostname, port)
 
         if protocol == Protocols.HTTP and method != "CONNECT":
-            logger.debug("sending to queue")
+            logger.INFO("Sending client request to queue")
             queue_manager.client_request_queue.put(self.client_data)
             queue_manager.info_queue.put(remote_socket)
             return
@@ -162,16 +162,16 @@ class Server(threading.Thread):
 
             ssl_remote_socket = net.wrap_remote_socket(remote_socket, hostname)
 
-            logger.debug("genning cert")
+
             cert_path, key_path = certs.generate_certificate(self.certs_path,
                                                              hostname,
                                                              self.cacert,
                                                              self.cakey)
 
-            logger.debug(f"GOT certs: {cert_path, key_path}")
+            logger.debug(f"Generated certificates: {cert_path, key_path}")
             ssl_client_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
 
-            logger.debug(f"GOT socket ssl client: {ssl_client_socket}")
+            logger.debug(f"Wrapped client socket with SSL: {ssl_client_socket}")
             ssl_client_data = ssl_client_socket.recv(4096)
 
             # logger.debug(f"GOT: {ssl_client_data}")
@@ -215,11 +215,12 @@ class Server(threading.Thread):
                     # DO NOT DELETE, MUST ESTABLISH/CONFIRM CONN W PROXY
                     self.client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
                     remote_ssl_socket = net.wrap_remote_socket(remote_socket, hostname)
+                    logger.debug(f"Wrapped remote socket with SSL: {remote_ssl_socket}")
                     cert_path, key_path = certs.generate_certificate(self.certs_path,
                                                                      hostname,
                                                                      self.cacert,
                                                                      self.cakey)
-                    print(f"certs {cert_path} {key_path}")
+                    logger.debug(f"Generated certificates: {cert_path, key_path}")
                     client_ssl_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
                     ssl_client_data = client_ssl_socket.recv(4096)
 
@@ -243,7 +244,9 @@ class Server(threading.Thread):
                                                                          hostname,
                                                                          self.cacert,
                                                                          self.cakey)
+                        logger.debug(f"Generated certificates: {cert_path, key_path}")
                         client_ssl_socket = net.wrap_client_socket(self.client_socket, cert_path, key_path)
+                        logger.debug(f"Wrapped client socket with SSL: {client_ssl_socket}")
 
                         print(f"{e}: Wrapping socket {client_ssl_socket} with {cert_path} {key_path}")
 
@@ -254,7 +257,7 @@ class Server(threading.Thread):
                                                                    data)).start()
 
         except socket.error as err:
-            logger.debug(f"{err} | Server ID: {self.id} |\n>Server Thread {self} |\n>Data: {data}")
+            logger.error(f"{err} | Server ID: {self.id} |\n>Server Thread {self} |\n>Data: {data}")
 
         finally:
             pass
