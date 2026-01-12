@@ -114,6 +114,7 @@ pip-selfcheck.json
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
+
 .idea/**/discord.xml
 
 # AWS User-specific
