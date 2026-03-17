@@ -3,7 +3,7 @@ cffi==1.17.0
 charset-normalizer==3.3.2
 idna==3.7
 pycparser==2.22
-pyOpenSSL==24.2.1
+pyOpenSSL==26.0.0
 requests==2.32.4
 tk==0.1.0
 urllib3==2.6.3
